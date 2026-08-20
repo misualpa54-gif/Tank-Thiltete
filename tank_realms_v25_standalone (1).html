@@ -1426,6 +1426,7 @@
             if (muzzleLightsInit) return;
             scene.add(muzzleLight);
             explosionLightPool.forEach(l => scene.add(l));
+            initGlowLights(); // v26: fixed glow pool exists before first render → light count never changes
             muzzleLightsInit = true;
         }
         function acquireExplosionLight(color, pos) {
@@ -1435,6 +1436,42 @@
             l.userData.ticket = explosionLightTicket;
             l.intensity = 3;
             return l;
+        }
+
+        // v26: GLOW LIGHT POOL — crystals & lava used to spawn real PointLights
+        // per feature (253 simultaneous point lights measured in Crystal Caverns).
+        // three.js bakes the light COUNT into every shader, so each streamed chunk
+        // changed the count and forced a shader-recompile storm on real GPUs —
+        // the "visual chaos" reported at level 15+. Now a FIXED pool of 8 lights
+        // continuously snaps to the nearest glow spots. Their falloff is only 8–15
+        // units, so distant lights were invisible anyway — near-player look unchanged.
+        const GLOW_POOL_SIZE = 8;
+        const glowLightPool = [];
+        let glowLightsInit = false;
+        let glowSpots = []; // { x, y, z, color, intensity, dist, chunkKey }
+        function initGlowLights() {
+            if (glowLightsInit) return;
+            for (let i = 0; i < GLOW_POOL_SIZE; i++) {
+                const l = new THREE.PointLight(0xffffff, 0, 15);
+                scene.add(l);
+                glowLightPool.push(l);
+            }
+            glowLightsInit = true;
+        }
+        function updateGlowLights() { // pool lights follow the nearest glow spots
+            if (!glowSpots.length) { for (const l of glowLightPool) l.intensity = 0; return; }
+            const px = player ? player.mesh.position.x : 0, pz = player ? player.mesh.position.z : 0;
+            const best = []; // GLOW_POOL_SIZE nearest (fixed-size insertion, O(n))
+            for (const s of glowSpots) {
+                const d2 = (s.x - px) * (s.x - px) + (s.z - pz) * (s.z - pz);
+                if (best.length < GLOW_POOL_SIZE) { best.push({ d2, s }); best.sort((a, b) => a.d2 - b.d2); }
+                else if (d2 < best[best.length - 1].d2) { best[GLOW_POOL_SIZE - 1] = { d2, s }; best.sort((a, b) => a.d2 - b.d2); }
+            }
+            for (let i = 0; i < glowLightPool.length; i++) {
+                const l = glowLightPool[i], e = best[i];
+                if (e) { l.color.setHex(e.s.color); l.position.set(e.s.x, e.s.y, e.s.z); l.intensity = e.s.intensity; l.distance = e.s.dist; }
+                else l.intensity = 0;
+            }
         }
 
         // Render gating: render only while playing (or when something changed while idle)
@@ -1974,6 +2011,7 @@
             waterMeshes = [];
             lavaMeshes.forEach(m => { scene.remove(m); disposeObject3D(m); });
             lavaMeshes = [];
+            glowSpots = []; // v26: rebuilt with the streamed chunks
 
             // FIX (Tier 2): release the old sun's shadow-map render target & sky texture
             if (dirLight && dirLight.shadow && dirLight.shadow.map) {
@@ -2317,6 +2355,7 @@
             if (chunk.buckets) for (const b of chunk.buckets.values()) b.geos.forEach(g => g.dispose());
             lavaMeshes = lavaMeshes.filter(l => !chunk.meshes.includes(l));
             waterMeshes = waterMeshes.filter(w => !chunk.meshes.includes(w)); // v26: purge chunk water refs
+            glowSpots = glowSpots.filter(s => s.chunkKey !== key); // v26: purge this chunk's glow spots
             envChunks.delete(key);
         }
 
@@ -2496,9 +2535,8 @@
             lava.userData = { baseY: lava.position.y, phase: rnd() * Math.PI * 2 };
             lavaMeshes.push(lava);
             chunk.meshes.push(lava); // v22: added at commit
-            const glow = new THREE.PointLight(0xff4500, 2, 15);
-            glow.position.set(x, getTerrainHeight(x, z) + 1, z);
-            chunk.meshes.push(glow);
+            // v26: glow registered as a spot for the pooled lights (was: a real PointLight per lava pool)
+            glowSpots.push({ x: x, y: getTerrainHeight(x, z) + 1, z: z, color: 0xff4500, intensity: 2, dist: 15, chunkKey: chunk.key });
         }
         function buildChunkCrystalCluster(biome, x, z, chunk, rnd) {
             for (let i = 0; i < 3 + Math.floor(rnd() * 4); i++) {
@@ -2513,9 +2551,10 @@
                 crystal.rotation.z = (rnd() - 0.5) * 0.3;
                 chunk.meshes.push(crystal); // v22: added at commit
                 if (rnd() > 0.6) {
-                    const glowLight = new THREE.PointLight(col, 0.5, 8);
-                    glowLight.position.set(cx, crystal.position.y + height / 2, cz);
-                    chunk.meshes.push(glowLight);
+                    // v26: glow registered as a spot for the pooled lights (was: a real
+                    // PointLight per crystal — hundreds in Crystal Caverns). Same rnd()
+                    // roll is consumed, so the seeded world layout is byte-identical.
+                    glowSpots.push({ x: cx, y: crystal.position.y + height / 2, z: cz, color: col.getHex(), intensity: 0.5, dist: 8, chunkKey: chunk.key });
                 }
             }
         }
@@ -4525,6 +4564,8 @@
                 lava.userData.phase += dt * 2;
                 lava.material.opacity = 0.8 + Math.sin(lava.userData.phase) * 0.15;
             });
+
+            updateGlowLights(); // v26: pooled crystal/lava glow follows the player
 
             // Animate water (v26: re-wired to the streamed chunk water planes — the
             // original wave math, applied to every registered water mesh)
