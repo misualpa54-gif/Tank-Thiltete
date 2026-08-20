@@ -1237,21 +1237,6 @@
             fortress: { name: "FORTRESS", color: 0x713f12, hp: 850, speed: 0.15, damage: 10, fireRate: 0.3, size: 3.1, points: 2600, desc: "BOSS — unending bullet spirals" }
         };
 
-        // Player Upgrades
-        const UPGRADES = [
-            { level: 2, stat: 'speed', amount: 15, text: '⚡ Speed +15%' },
-            { level: 3, stat: 'damage', amount: 20, text: '💥 Damage +20%' },
-            { level: 4, stat: 'regen', amount: 2, text: '🔄 Regen +2/s' },
-            { level: 5, stat: 'armor', amount: 10, text: '🛡️ Armor +10' },
-            { level: 6, stat: 'fireRate', amount: 20, text: '🔥 Fire Rate +20%' },
-            { level: 7, stat: 'speed', amount: 15, text: '⚡ Speed +15%' },
-            { level: 8, stat: 'damage', amount: 25, text: '💥 Damage +25%' },
-            { level: 9, stat: 'maxHp', amount: 30, text: '❤️ Max HP +30' },
-            { level: 10, stat: 'multishot', amount: 1, text: '🎯 Triple Shot!' },
-            { level: 12, stat: 'armor', amount: 20, text: '🛡️ Armor +20' },
-            { level: 15, stat: 'regen', amount: 5, text: '🔄 Regen +5/s' },
-        ];
-
         const CONFIG = {
             playerSpeed: 18,
             bulletSpeed: 60,
@@ -1309,9 +1294,9 @@
 
         // Three.js Globals
         let scene, camera, renderer, clock;
-        let player, bullets = [], enemies = [], particles = [], environmentObjects = [];
+        let player, bullets = [], enemies = [], particles = [];
         let ambientLight, dirLight, hemisphereLight;
-        let groundMesh, waterMesh, lavaMeshes = [];
+        let lavaMeshes = [], waterMeshes = []; // v26: chunk feature registries (lava glow + water waves)
         let environmentParticles = [];
         // v17: chunk streaming — the infinite world is served in 48-unit chunks
         const CHUNK = 48, CHUNK_TILES = 5;         // ground tile grid 5x5 = 240 units of visible terrain
@@ -1393,9 +1378,6 @@
         const _sv1 = new THREE.Vector2();
         const _dummy = new THREE.Object3D();
 
-        let envColliders = [];       // { x, z, r, type } — bullet collision data
-        const ENV_CELL = 10;
-        let envGrid = new Map();     // "cx,cz" -> collider array
         function* collidersNear(x, z) { // v17: colliders live on their chunks — check the 3x3 chunk neighborhood
             const pcx = Math.floor(x / CHUNK), pcz = Math.floor(z / CHUNK);
             for (let ix = pcx - 1; ix <= pcx + 1; ix++)
@@ -1444,6 +1426,7 @@
             if (muzzleLightsInit) return;
             scene.add(muzzleLight);
             explosionLightPool.forEach(l => scene.add(l));
+            initGlowLights(); // v26: fixed glow pool exists before first render → light count never changes
             muzzleLightsInit = true;
         }
         function acquireExplosionLight(color, pos) {
@@ -1453,6 +1436,42 @@
             l.userData.ticket = explosionLightTicket;
             l.intensity = 3;
             return l;
+        }
+
+        // v26: GLOW LIGHT POOL — crystals & lava used to spawn real PointLights
+        // per feature (253 simultaneous point lights measured in Crystal Caverns).
+        // three.js bakes the light COUNT into every shader, so each streamed chunk
+        // changed the count and forced a shader-recompile storm on real GPUs —
+        // the "visual chaos" reported at level 15+. Now a FIXED pool of 8 lights
+        // continuously snaps to the nearest glow spots. Their falloff is only 8–15
+        // units, so distant lights were invisible anyway — near-player look unchanged.
+        const GLOW_POOL_SIZE = 8;
+        const glowLightPool = [];
+        let glowLightsInit = false;
+        let glowSpots = []; // { x, y, z, color, intensity, dist, chunkKey }
+        function initGlowLights() {
+            if (glowLightsInit) return;
+            for (let i = 0; i < GLOW_POOL_SIZE; i++) {
+                const l = new THREE.PointLight(0xffffff, 0, 15);
+                scene.add(l);
+                glowLightPool.push(l);
+            }
+            glowLightsInit = true;
+        }
+        function updateGlowLights() { // pool lights follow the nearest glow spots
+            if (!glowSpots.length) { for (const l of glowLightPool) l.intensity = 0; return; }
+            const px = player ? player.mesh.position.x : 0, pz = player ? player.mesh.position.z : 0;
+            const best = []; // GLOW_POOL_SIZE nearest (fixed-size insertion, O(n))
+            for (const s of glowSpots) {
+                const d2 = (s.x - px) * (s.x - px) + (s.z - pz) * (s.z - pz);
+                if (best.length < GLOW_POOL_SIZE) { best.push({ d2, s }); best.sort((a, b) => a.d2 - b.d2); }
+                else if (d2 < best[best.length - 1].d2) { best[GLOW_POOL_SIZE - 1] = { d2, s }; best.sort((a, b) => a.d2 - b.d2); }
+            }
+            for (let i = 0; i < glowLightPool.length; i++) {
+                const l = glowLightPool[i], e = best[i];
+                if (e) { l.color.setHex(e.s.color); l.position.set(e.s.x, e.s.y, e.s.z); l.intensity = e.s.intensity; l.distance = e.s.dist; }
+                else l.intensity = 0;
+            }
         }
 
         // Render gating: render only while playing (or when something changed while idle)
@@ -1981,8 +2000,6 @@
 
             // Clear previous environment
             // FIX (Tier 2): dispose GPU resources of the old environment before rebuilding
-            environmentObjects.forEach(obj => { scene.remove(obj); disposeObject3D(obj); });
-            environmentObjects = [];
             environmentParticles = [];
             if (envParticleMesh) { // FIX (Tier 3): dispose the previous biome's instanced particles
                 scene.remove(envParticleMesh);
@@ -1990,10 +2007,11 @@
                 if (envParticleMesh.dispose) envParticleMesh.dispose();
                 envParticleMesh = null;
             }
-            envColliders = []; // FIX (Tier 3): collision data is rebuilt with the environment
-            if (waterMesh) { scene.remove(waterMesh); disposeObject3D(waterMesh); waterMesh = null; }
+            waterMeshes.forEach(m => { scene.remove(m); disposeObject3D(m); });
+            waterMeshes = [];
             lavaMeshes.forEach(m => { scene.remove(m); disposeObject3D(m); });
             lavaMeshes = [];
+            glowSpots = []; // v26: rebuilt with the streamed chunks
 
             // FIX (Tier 2): release the old sun's shadow-map render target & sky texture
             if (dirLight && dirLight.shadow && dirLight.shadow.map) {
@@ -2038,6 +2056,7 @@
             dirLight.shadow.camera.top = 115;
             dirLight.shadow.camera.bottom = -115;
             scene.add(dirLight);
+            scene.add(dirLight.target); // v26: target tracks the player so the shadow frustum can follow
 
             // v17: infinite world — tiles + streamed chunks around the player
             const px = player ? player.mesh.position.x : 0;
@@ -2335,6 +2354,8 @@
             chunk.meshes.forEach(m => { scene.remove(m); disposeObject3D(m); if (m.isInstancedMesh && m.dispose) m.dispose(); });
             if (chunk.buckets) for (const b of chunk.buckets.values()) b.geos.forEach(g => g.dispose());
             lavaMeshes = lavaMeshes.filter(l => !chunk.meshes.includes(l));
+            waterMeshes = waterMeshes.filter(w => !chunk.meshes.includes(w)); // v26: purge chunk water refs
+            glowSpots = glowSpots.filter(s => s.chunkKey !== key); // v26: purge this chunk's glow spots
             envChunks.delete(key);
         }
 
@@ -2399,42 +2420,6 @@
                     g.geo.dispose();
                 }
             }
-        }
-
-        function disposeEnvChunk(key) {
-            const chunk = envChunks.get(key);
-            if (!chunk) return;
-            chunk.meshes.forEach(m => { scene.remove(m); disposeObject3D(m); if (m.isInstancedMesh && m.dispose) m.dispose(); });
-            if (chunk.buckets) for (const b of chunk.buckets.values()) b.geos.forEach(g => g.dispose()); // v19: source geos
-            lavaMeshes = lavaMeshes.filter(l => !chunk.meshes.includes(l)); // v17: always purge chunk lava refs
-            envChunks.delete(key);
-        }
-
-        function streamChunks(px, pz, immediate) {
-            const pcx = Math.floor(px / CHUNK), pcz = Math.floor(pz / CHUNK);
-            const wanted = [];
-            for (let dx = -CHUNK_ENV_RADIUS; dx <= CHUNK_ENV_RADIUS; dx++)
-                for (let dz = -CHUNK_ENV_RADIUS; dz <= CHUNK_ENV_RADIUS; dz++) {
-                    const key = chunkKey(pcx + dx, pcz + dz);
-                    if (!envChunks.has(key) && !chunkBuildQueue.some(c => c.key === key)) {
-                        wanted.push({ key, cx: pcx + dx, cz: pcz + dz, d: dx * dx + dz * dz });
-                    }
-                }
-            wanted.sort((a, b) => a.d - b.d);
-            if (immediate) wanted.forEach(w => buildEnvChunk(w.cx, w.cz));
-            else chunkBuildQueue.push(...wanted);
-            for (const key of [...envChunks.keys()]) {
-                const parts = key.split(',');
-                if (Math.max(Math.abs(parts[0] - pcx), Math.abs(parts[1] - pcz)) > CHUNK_ENV_RADIUS + 1) disposeEnvChunk(key);
-            }
-        }
-
-        function updateChunkStream() { // one build per frame — no hitches while roaming
-            if (!chunkBuildQueue.length || !player) return;
-            const w = chunkBuildQueue.shift();
-            const pcx = Math.floor(player.mesh.position.x / CHUNK), pcz = Math.floor(player.mesh.position.z / CHUNK);
-            if (Math.max(Math.abs(w.cx - pcx), Math.abs(w.cz - pcz)) > CHUNK_ENV_RADIUS + 1) return; // stale request
-            buildEnvChunk(w.cx, w.cz);
         }
 
         // ---- per-chunk scenery builders (seeded; bake into chunk buckets) ----
@@ -2539,6 +2524,7 @@
             const m = new THREE.Mesh(waterGeo, waterMat);
             m.rotation.x = -Math.PI / 2;
             m.position.set(x, getTerrainHeight(x, z) + 0.2, z);
+            waterMeshes.push(m); // v26: registered for the wave animation
             chunk.meshes.push(m); // v22: added at commit
         }
         function buildChunkLava(biome, x, z, chunk, rnd) {
@@ -2549,9 +2535,8 @@
             lava.userData = { baseY: lava.position.y, phase: rnd() * Math.PI * 2 };
             lavaMeshes.push(lava);
             chunk.meshes.push(lava); // v22: added at commit
-            const glow = new THREE.PointLight(0xff4500, 2, 15);
-            glow.position.set(x, getTerrainHeight(x, z) + 1, z);
-            chunk.meshes.push(glow);
+            // v26: glow registered as a spot for the pooled lights (was: a real PointLight per lava pool)
+            glowSpots.push({ x: x, y: getTerrainHeight(x, z) + 1, z: z, color: 0xff4500, intensity: 2, dist: 15, chunkKey: chunk.key });
         }
         function buildChunkCrystalCluster(biome, x, z, chunk, rnd) {
             for (let i = 0; i < 3 + Math.floor(rnd() * 4); i++) {
@@ -2566,9 +2551,10 @@
                 crystal.rotation.z = (rnd() - 0.5) * 0.3;
                 chunk.meshes.push(crystal); // v22: added at commit
                 if (rnd() > 0.6) {
-                    const glowLight = new THREE.PointLight(col, 0.5, 8);
-                    glowLight.position.set(cx, crystal.position.y + height / 2, cz);
-                    chunk.meshes.push(glowLight);
+                    // v26: glow registered as a spot for the pooled lights (was: a real
+                    // PointLight per crystal — hundreds in Crystal Caverns). Same rnd()
+                    // roll is consumed, so the seeded world layout is byte-identical.
+                    glowSpots.push({ x: cx, y: crystal.position.y + height / 2, z: cz, color: col.getHex(), intensity: 0.5, dist: 8, chunkKey: chunk.key });
                 }
             }
         }
@@ -3437,14 +3423,6 @@
             el.classList.toggle('hidden', !visible);
         }
 
-        function resetTransientUI() {
-            setScreenVisibility('start-screen', false);
-            setScreenVisibility('pause-screen', false);
-            setScreenVisibility('game-over-screen', false);
-            setPauseUIVisible(false);
-            document.getElementById('joystick-base').style.display = 'none';
-        }
-
         function pauseGame() {
             if (!state.isPlaying || state.gamePhase !== 'playing') return;
             SFX.engineStop(); SFX.musicStop(); // v23+v24
@@ -3531,17 +3509,10 @@
         function spawnBoss() {
             if (!state.isPlaying || !player) return;
             const kind = BOSS_KINDS[(state.bossCount || 0) % BOSS_KINDS.length];
-            let x, z;
-            do {
-                x = (Math.random() - 0.5) * 110;
-                z = (Math.random() - 0.5) * 110;
-            } while (player.mesh.position.distanceTo(new THREE.Vector3(x, 0, z)) < 40);
-            let bx, bz; // v17: ring around the player
-            do {
-                const a = Math.random() * Math.PI * 2;
-                bx = (player ? player.mesh.position.x : 0) + Math.cos(a) * 45;
-                bz = (player ? player.mesh.position.z : 0) + Math.sin(a) * 45;
-            } while (false);
+            // v17: spawn in a ring around the player — works anywhere in the infinite world
+            const a = Math.random() * Math.PI * 2;
+            const bx = (player ? player.mesh.position.x : 0) + Math.cos(a) * 45;
+            const bz = (player ? player.mesh.position.z : 0) + Math.sin(a) * 45;
             const boss = new Tank(ENEMY_TYPES[kind.type].color, false, kind.type);
             boss.hp = boss.maxHp = Math.round(boss.maxHp * (1 + state.level * 0.03)); // scales with level
             boss.isBoss = true;
@@ -3972,9 +3943,11 @@
             if (player) { scene.remove(player.mesh); disposeObject3D(player.mesh); }
             enemies.forEach(e => { scene.remove(e.mesh); disposeObject3D(e.mesh); });
             bullets.forEach(b => scene.remove(b.group));
+            missiles.forEach(m => scene.remove(m.group)); // v26: in-flight missiles must not leak into the next run
             particles.forEach(p => { scene.remove(p.mesh); disposeObject3D(p.mesh); });
             enemies = [];
             bullets = [];
+            missiles = [];
             particles = [];
 
             state.mode = mode; // v10
@@ -4107,13 +4080,10 @@
             if (!state.isPlaying || !player) return;
 
             // v17: enemies spawn in a ring around the PLAYER — works anywhere in the infinite world
-            let x, z;
-            do {
-                const a = Math.random() * Math.PI * 2;
-                const d = 38 + Math.random() * 26;
-                x = player.mesh.position.x + Math.cos(a) * d;
-                z = player.mesh.position.z + Math.sin(a) * d;
-            } while (false);
+            const a = Math.random() * Math.PI * 2;
+            const d = 38 + Math.random() * 26;
+            const x = player.mesh.position.x + Math.cos(a) * d;
+            const z = player.mesh.position.z + Math.sin(a) * d;
 
             const type = getEnemyTypeForLevel(state.level);
             showEnemyIntro(type);
@@ -4595,14 +4565,17 @@
                 lava.material.opacity = 0.8 + Math.sin(lava.userData.phase) * 0.15;
             });
 
-            // Animate water
-            if (waterMesh) {
-                const time = clock.getElapsedTime();
-                const positions = waterMesh.geometry.attributes.position;
+            updateGlowLights(); // v26: pooled crystal/lava glow follows the player
+
+            // Animate water (v26: re-wired to the streamed chunk water planes — the
+            // original wave math, applied to every registered water mesh)
+            const wTime = clock.getElapsedTime();
+            for (const w of waterMeshes) {
+                const positions = w.geometry.attributes.position;
                 for (let i = 0; i < positions.count; i++) {
                     const x = positions.getX(i);
                     const y = positions.getY(i);
-                    positions.setZ(i, Math.sin(x * 0.3 + time) * 0.3 + Math.cos(y * 0.3 + time * 0.7) * 0.2);
+                    positions.setZ(i, Math.sin(x * 0.3 + wTime) * 0.3 + Math.cos(y * 0.3 + wTime * 0.7) * 0.2);
                 }
                 positions.needsUpdate = true;
             }
@@ -4685,6 +4658,15 @@
                 camera.position.z += (Math.random() - 0.5) * state.cameraShake * shakeScale;
                 state.cameraShake = Math.max(0, state.cameraShake - dt * 2);
             }
+
+            // v26: keep the shadow frustum centered on the player. The ±115-unit
+            // ortho box used to sit at the origin forever — in the infinite world
+            // everything beyond ~115 units from spawn silently lost its shadows.
+            // Re-centers in quantized 8-unit steps so shadows don't shimmer while driving.
+            const _sx = Math.round(player.mesh.position.x / 8) * 8;
+            const _sz = Math.round(player.mesh.position.z / 8) * 8;
+            dirLight.position.set(_sx + 50, 80, _sz + 30);
+            dirLight.target.position.set(_sx, 0, _sz);
 
             drawMinimap(); // v2 UI: battlefield awareness on the bigger map
             if ((state._tipTick = (state._tipTick || 0) + 1) % 120 === 0) tutorialTick(); // v25
@@ -5139,17 +5121,9 @@
 
         document.getElementById('btn-quit').addEventListener('click', (e) => {
             e.stopPropagation();
-            state.isPlaying = false;
-            state.gamePhase = 'menu';
-            state.input = { x: 0, y: 0, isFiring: false };
-            if (player && scene) { scene.remove(player.mesh); disposeObject3D(player.mesh); } // FIX (Tier 2)
-            needsRender = true; // FIX (Tier 3)
-            setScreenVisibility('pause-screen', false);
-            setScreenVisibility('game-over-screen', false);
-            setScreenVisibility('start-screen', true);
-            setPauseUIVisible(false);
-            syncHUDControls();
-            updateHomeStats(); // v7
+            // v26: use the canonical quit path — it also disposes enemies/bullets/
+            // missiles/particles and stops audio (the inline copy leaked them all)
+            quitToMenu();
         });
 
         document.getElementById('start-screen').classList.remove('hidden');
@@ -5365,7 +5339,10 @@ function loadGame(){
         state.achUnlocked = d.achUnlocked || [];
         state.daily = d.daily || null;
         if (d.musicEnabled === false) state.musicEnabled = false; // v24
-        if (d.quality === 'low' || d.quality === 'high') { state.quality = d.quality; if (d.quality === 'low') _autoDecided = true; } // v25
+        if (d.quality === 'low' || d.quality === 'high') {
+            state.quality = d.quality;
+            if (d.quality === 'low') { _autoDecided = true; applyQuality('low'); } // v26: actually apply the saved setting at boot (shadows/pixel-ratio were staying at High)
+        } // v25
         if (d.tutorialTips) state.tutorialTips = d.tutorialTips;
         state.maxCleared = (d.progress && d.progress.maxCleared) || 1; // v13
         if (d.v === 3) { // v13: named save slots + auto slot
@@ -5382,17 +5359,8 @@ loadGame();
 
 // HUD coins display
 setInterval(()=>{
-    let el = document.getElementById('coins');
-    if(!el){
-        let hud = document.querySelector('.hud-panel');
-        if(hud){
-            let div = document.createElement('div');
-            div.innerHTML = '💰 <span id="coins">0</span>';
-            hud.appendChild(div);
-        }
-    } else {
-        el.innerText = state.coins;
-    }
+    const el = document.getElementById('coins');
+    if (el) el.innerText = state.coins; // v26: dead fallback branch removed — the coins chip always exists
 },500);
 
 </script>
@@ -5409,5 +5377,4 @@ setInterval(()=>{
         });
     }
 </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a2df9afc89e3cd8c',t:'MTc4NzIxMDExMQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
