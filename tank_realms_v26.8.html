@@ -892,7 +892,7 @@
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">v26.7</div>
+        <div class="version-tag" id="version-tag">v26.8</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -911,7 +911,8 @@
             <div class="settings-title" style="font-size:1.3rem;">💾 Save run</div>
             <div class="settings-subtitle" id="save-dialog-info"></div>
             <input type="text" id="save-name-input" maxlength="24" placeholder="Save name…" style="width:100%; padding:12px 14px; border-radius:12px; border:1px solid rgba(255,255,255,0.2); background:rgba(255,255,255,0.07); color:#fff; font-size:15px; outline:none;">
-            <div style="display:flex; gap:10px; margin-top:14px;">
+            <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
+                <button class="btn" id="btn-save-overwrite" style="margin:0; flex:1; padding:12px 0; font-size:14px; display:none; background:linear-gradient(135deg,#f59e0b,#d97706);">Overwrite</button>
                 <button class="btn" id="btn-save-confirm" style="margin:0; flex:1; padding:12px 0; font-size:14px;">💾 Save</button>
                 <button class="hud-icon-btn wide" id="btn-save-cancel" style="flex:1;">Cancel</button>
             </div>
@@ -966,6 +967,7 @@
         </div>
         <div id="new-best-badge" class="hidden">★ NEW BEST! ★</div>
         <button class="btn btn-restart" id="btn-restart">Try Again</button>
+        <button class="btn" id="btn-go-home" style="background: linear-gradient(135deg, #64748b 0%, #334155 100%); box-shadow: 0 10px 40px rgba(51,65,85,0.4);">⌂ Back to Home</button>
         <button class="btn" id="btn-shop" style="background: linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%); box-shadow: 0 10px 40px rgba(14,165,233,0.4);">🛒 Armory &nbsp;·&nbsp; 💰 <span id="shop-coins-go">0</span></button>
     </div>
 
@@ -1722,10 +1724,10 @@
             return {
                 // -- one-shots --
                 shoot() { tone(190, 0.07, 'square', 0.028, 90); },
-                enemyShoot() { tone(120, 0.08, 'square', 0.018, 60); },
-                hit() { tone(340, 0.05, 'triangle', 0.05, 240); },
-                crit() { tone(660, 0.07, 'sine', 0.06); setTimeout(() => tone(990, 0.08, 'sine', 0.05), 45); },
-                kill() { tone(523, 0.07, 'sine', 0.045); setTimeout(() => tone(784, 0.09, 'sine', 0.04), 60); },
+                enemyShoot() { /* v26.8: enemy gunfire silent — was drowning the mix */ },
+                hit() { /* v26.8: skip per-hit pings */ },
+                crit() { tone(660, 0.07, 'sine', 0.05); },
+                kill() { /* v26.8: skip per-kill chime; bosses use bossDown */ },
                 explosion(size) {
                     const s = Math.min(1.6, 0.5 + size / 40);
                     noise(0.55 * s, 900, 90, 0.22 * Math.min(1, s));
@@ -3124,6 +3126,7 @@
 
         // v24: homing missile system
         let missiles = [];
+        let supplyDrops = []; // v26.8
         function fireHomingMissile(target) {
             const g = new THREE.Group();
             const body = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 1.2), new THREE.MeshBasicMaterial({ color: 0xff6644 }));
@@ -3136,7 +3139,6 @@
             scene.add(g);
             missiles.push({ group: g, target, life: 5, speed: 34,
                 vel: new THREE.Vector3(Math.random() - 0.5, 7, (Math.random() - 0.5) * 4) });
-            SFX.enemyShoot();
         }
         function updateMissiles(dt) {
             for (let i = missiles.length - 1; i >= 0; i--) {
@@ -3186,7 +3188,7 @@
             const nowS = performance.now();
             if (source.isPlayer) {
                 if (nowS - _sfxShootAt > 95) { _sfxShootAt = nowS; SFX.shoot(); }
-            } else if (nowS - _sfxEnemyAt > 160) { _sfxEnemyAt = nowS; SFX.enemyShoot(); }
+            } /* v26.8: no enemy gunfire SFX */
             // Recoil animation with smooth return
             const originalZ = source.barrel.position.z;
             source.barrel.position.z -= 0.5;
@@ -3514,7 +3516,7 @@
             }
 
             state.cameraShake = Math.max(state.cameraShake, count > 30 ? 0.5 : 0.2);
-            SFX.explosion(count); // v23
+            if (count >= 10) SFX.explosion(count); // v26.8: only chunky blasts
         }
 
         // ============================================
@@ -3633,7 +3635,6 @@
             const points = enemy.pointValue || ENEMY_TYPES[enemy.type]?.points || 100;
             state.score += points;
             state.kills++;
-            try { SFX.kill(); } catch (err) {}
             if ((state.playerStats.healOnKill || 0) > 0 && player && !player.isDead) {
                 player.hp = Math.min(player.maxHp, player.hp + state.playerStats.healOnKill);
                 try { createHealEffect(player.mesh.position); } catch (err) {}
@@ -3946,26 +3947,47 @@
                 wrap.appendChild(empty);
             }
         }
-        function saveCurrentRun(name) { // v13: push a named record (no overwriting)
+        function upsertNamedSave(name, overwriteName) {
             const snap = snapshotRun();
             if (!snap) return false;
-            snap.name = name;
             snap.savedAt = Date.now();
-            let final = name, i = 2;
-            while ((state.casualSaves || []).some(s => s.name === final)) final = name + ' (' + (i++) + ')'; // never overwrite
             state.casualSaves = state.casualSaves || [];
-            state.casualSaves.push(final === name ? { ...snap, name } : { ...snap, name: final });
+            if (overwriteName) {
+                const i = state.casualSaves.findIndex(s => s.name === overwriteName);
+                if (i >= 0) {
+                    state.casualSaves[i] = { ...snap, name: overwriteName };
+                    state.activeSaveName = overwriteName;
+                    state.savedThisRun = true;
+                    try { saveGame(); } catch (e) {}
+                    return overwriteName;
+                }
+            }
+            snap.name = name;
+            let final = name, n = 2;
+            while (state.casualSaves.some(s => s.name === final)) final = name + ' (' + (n++) + ')';
+            state.casualSaves.push({ ...snap, name: final });
             if (state.casualSaves.length > 12) state.casualSaves.shift();
+            state.activeSaveName = final;
+            state.savedThisRun = true;
             try { saveGame(); } catch (e) {}
             return final;
         }
-        function openSaveDialog() { // v13: name your save
+        function saveCurrentRun(name) { // v13 / v26.8
+            return upsertNamedSave(name, null);
+        }
+        function openSaveDialog() { // v13: name your save — v26.8: offer overwrite if this run was loaded
             const snap = snapshotRun();
             if (!snap) return;
-            document.getElementById('save-dialog-info').textContent =
-                'Lv ' + snap.level + ' · ' + (snap.score || 0).toLocaleString() + ' pts · ' + fmtTime(snap.runTime);
+            const loaded = state.activeSaveName;
+            document.getElementById('save-dialog-info').textContent = loaded
+                ? ('Loaded “' + loaded + '”. Overwrite it, or save as a new run.  ·  Lv ' + snap.level + ' · ' + fmtTime(snap.runTime))
+                : ('Lv ' + snap.level + ' · ' + (snap.score || 0).toLocaleString() + ' pts · ' + fmtTime(snap.runTime));
             const input = document.getElementById('save-name-input');
-            input.value = 'Run Lv' + snap.level;
+            input.value = loaded || ('Run Lv' + snap.level);
+            const ow = document.getElementById('btn-save-overwrite');
+            if (ow) ow.style.display = loaded ? '' : 'none';
+            const conf = document.getElementById('btn-save-confirm');
+            if (conf) conf.textContent = loaded ? '💾 Save as new' : '💾 Save';
             document.getElementById('save-dialog').classList.remove('hidden');
             setTimeout(() => { input.focus(); input.select(); }, 50);
         }
@@ -4127,15 +4149,20 @@
             bullets.forEach(b => scene.remove(b.group));
             missiles.forEach(m => scene.remove(m.group)); // v26: in-flight missiles must not leak into the next run
             particles.forEach(p => { scene.remove(p.mesh); disposeObject3D(p.mesh); });
+            supplyDrops.forEach(d => { if (d.group) { scene.remove(d.group); disposeObject3D(d.group); } });
             enemies = [];
             bullets = [];
             missiles = [];
             particles = [];
+            supplyDrops = [];
+            state.nextDropAt = 12;
 
             state.mode = mode; // v10
             state.diffMult = DIFFICULTIES[(opts && opts.difficulty) || 'normal'] || DIFFICULTIES.normal;
             if (mode === 'levels') state.levelsCfg.density = (opts && opts.density) || 10;
             const resume = mode === 'casual' && (opts && opts.resume);
+            state.activeSaveName = resume && opts.resume.name ? opts.resume.name : null;
+            state.savedThisRun = false;
             // v11/v26.6: shop consumables only on a FRESH run — reloading a save must not eat them
             const cons = consumables();
             let freeCards = 0, useOvercharge = false, useAegis = false;
@@ -4298,6 +4325,113 @@
             setTimeout(() => intro.classList.remove('show'), 1100);
         }
 
+        function spawnSupplyDrop() {
+            if (!player || state.level < 4) return;
+            const a = Math.random() * Math.PI * 2;
+            const d = 16 + Math.random() * 18;
+            const x = player.mesh.position.x + Math.cos(a) * d;
+            const z = player.mesh.position.z + Math.sin(a) * d;
+            const ground = getTerrainHeight(x, z);
+            const g = new THREE.Group();
+            const crate = new THREE.Mesh(
+                new THREE.BoxGeometry(1.3, 1.1, 1.3),
+                new THREE.MeshStandardMaterial({ color: 0xfbbf24, emissive: 0xaa7700, emissiveIntensity: 0.55, metalness: 0.3, roughness: 0.45 })
+            );
+            crate.position.y = 0.55;
+            g.add(crate);
+            const band = new THREE.Mesh(
+                new THREE.BoxGeometry(1.38, 0.18, 1.38),
+                new THREE.MeshBasicMaterial({ color: 0xfff7cc })
+            );
+            band.position.y = 0.55;
+            g.add(band);
+            const chute = new THREE.Mesh(
+                new THREE.ConeGeometry(1.6, 1.2, 8),
+                new THREE.MeshBasicMaterial({ color: 0xfde68a, transparent: true, opacity: 0.7, side: THREE.DoubleSide })
+            );
+            chute.position.y = 1.7;
+            chute.rotation.x = Math.PI;
+            g.add(chute);
+            const beam = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.18, 0.55, 18, 8, 1, true),
+                new THREE.MeshBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false })
+            );
+            beam.position.y = 9;
+            g.add(beam);
+            g.position.set(x, ground + 16, z);
+            scene.add(g);
+            supplyDrops.push({ group: g, chute: chute, beam: beam, yLand: ground, falling: true, bob: Math.random() * 6 });
+            showUpgradeNotification('📦 Supply drop inbound');
+        }
+        function collectSupplyDrop(drop) {
+            if (!drop || !player) return;
+            const kinds = ['repair', 'overcharge', 'shield', 'coins', 'card', 'haste', 'xp'];
+            const kind = kinds[Math.floor(Math.random() * kinds.length)];
+            if (kind === 'repair') {
+                player.hp = Math.min(player.maxHp, player.hp + Math.ceil(player.maxHp * 0.45));
+                try { createHealEffect(player.mesh.position); } catch (e) {}
+                showUpgradeNotification('❤️ Repair kit +45% HP');
+            } else if (kind === 'overcharge') {
+                state.overchargeUntil = (state.runTime || 0) + 15;
+                showUpgradeNotification('⚡ Overcharge 15s');
+            } else if (kind === 'shield') {
+                state.shieldUp = true; state.shieldReadyAt = 0;
+                if (player.shieldRing) player.shieldRing.visible = true;
+                showUpgradeNotification('🛡️ Shield charged');
+            } else if (kind === 'coins') {
+                const n = 90 + state.level * 14;
+                state.coins = (state.coins || 0) + n;
+                state.runCoins = (state.runCoins || 0) + n;
+                showUpgradeNotification('💰 Cache +' + n);
+            } else if (kind === 'card') {
+                showUpgradeNotification('🌟 Bonus upgrade');
+                if (!state.isChoosingUpgrade) showUpgradeChoices();
+                else state.pendingChoices = (state.pendingChoices || 0) + 1;
+            } else if (kind === 'haste') {
+                state.speedBoostUntil = clock.getElapsedTime() + 10;
+                state.playerStats.adrenaline = Math.max(state.playerStats.adrenaline || 0, 1);
+                showUpgradeNotification('💨 Haste 10s');
+            } else {
+                addXP(80 + state.level * 8);
+                showUpgradeNotification('🎖️ Intel cache — XP');
+            }
+            try { SFX.coin(); } catch (e) {}
+            try { updateHUD(); } catch (e) {}
+            scene.remove(drop.group); disposeObject3D(drop.group);
+        }
+        function updateSupplyDrops(dt) {
+            if (!player) return;
+            if (state.level >= 4 && !state.isChoosingUpgrade) {
+                if (state.nextDropAt == null) state.nextDropAt = (state.runTime || 0) + 12;
+                if ((state.runTime || 0) >= state.nextDropAt && supplyDrops.length < 2) {
+                    spawnSupplyDrop();
+                    state.nextDropAt = (state.runTime || 0) + 40 + Math.random() * 25;
+                }
+            }
+            for (let i = supplyDrops.length - 1; i >= 0; i--) {
+                const d = supplyDrops[i];
+                if (!d.group) { supplyDrops.splice(i, 1); continue; }
+                if (d.falling) {
+                    d.group.position.y -= 9 * dt;
+                    if (d.group.position.y <= d.yLand + 0.05) {
+                        d.group.position.y = d.yLand;
+                        d.falling = false;
+                        if (d.chute) d.chute.visible = false;
+                    }
+                } else {
+                    d.bob += dt * 2;
+                    d.group.position.y = d.yLand + Math.sin(d.bob) * 0.12;
+                    d.group.rotation.y += dt * 0.7;
+                }
+                if (d.beam && d.beam.material) d.beam.material.opacity = 0.18 + 0.14 * Math.sin(clock.getElapsedTime() * 3 + d.bob);
+                const dx = d.group.position.x - player.mesh.position.x;
+                const dz = d.group.position.z - player.mesh.position.z;
+                if (dx * dx + dz * dz < 16) {
+                    collectSupplyDrop(d);
+                    supplyDrops.splice(i, 1);
+                }
+            }
+        }
         function spawnEnemy() {
             if (!state.isPlaying || !player) return;
 
@@ -4382,6 +4516,7 @@
             // Player movement
             player.move(dt, _sv1.set(state.input.x, state.input.y)); // FIX (Tier 3)
             player.update(dt);
+            updateSupplyDrops(dt);
 
             // Health regen
             if (state.playerStats.regen > 0 && clock.getElapsedTime() - state.lastRegenTime > 1) {
@@ -5056,6 +5191,14 @@
                 ctx.arc(mx, mz, e.isBoss ? 5 : (e === state.targetEnemy ? 3 : 2.1), 0, Math.PI * 2);
                 ctx.fill();
             }
+            if (supplyDrops && supplyDrops.length) {
+                for (const d of supplyDrops) {
+                    if (!d || !d.group) continue;
+                    const [sx, sz] = toMap(d.group.position.x, d.group.position.z);
+                    ctx.fillStyle = '#fbbf24';
+                    ctx.fillRect(sx - 3, sz - 3, 6, 6);
+                }
+            }
 
             const [px, pz] = toMap(player.mesh.position.x, player.mesh.position.z); // player arrow
             ctx.save();
@@ -5148,8 +5291,22 @@
             const isCasual = state.mode === 'casual'; // v10: separate bests per mode
             let best = isCasual ? (state.bestCasual || 0) : (state.bestLevels || 0);
             const isBest = state.score > best;
-            if (isCasual) { if (isBest) state.bestCasual = state.score; state.autoSave = null; } // run over -> auto slot cleared, NAMED SAVES KEPT
-            else if (isBest) state.bestLevels = state.score;
+            if (isCasual) {
+                if (isBest) state.bestCasual = state.score;
+                // v26.8: if this run was loaded from a named save and never saved, keep that slot up to date
+                if (state.activeSaveName && !state.savedThisRun) {
+                    const snap = snapshotRun();
+                    if (snap) {
+                        snap.hp = Math.max(1, Math.ceil((state.playerStats.maxHp || 100) * 0.55));
+                        const i = (state.casualSaves || []).findIndex(s => s.name === state.activeSaveName);
+                        if (i >= 0) {
+                            state.casualSaves[i] = { ...snap, name: state.activeSaveName, savedAt: Date.now() };
+                            try { saveGame(); } catch (err) {}
+                        }
+                    }
+                }
+                state.autoSave = null;
+            } else if (isBest) state.bestLevels = state.score;
             try { saveGame(); } catch (e) {}
             best = state.score > best ? state.score : best;
             document.getElementById('final-best').textContent = best;
@@ -5365,6 +5522,17 @@
             startGame(state.mode || 'casual', state.mode === 'levels'
                 ? { density: state.levelsCfg.density, difficulty: state.diffMult.label === 'Easy' ? 'easy' : state.diffMult.label === 'Hard' ? 'hard' : state.diffMult.label === 'Nightmare' ? 'nightmare' : 'normal', startLevel: state.startLevelUsed || 1 }
                 : {});
+        });
+        document.getElementById('btn-go-home').addEventListener('click', (e) => {
+            e.stopPropagation();
+            quitToMenu();
+        });
+        document.getElementById('btn-save-overwrite').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const name = state.activeSaveName;
+            const saved = name ? upsertNamedSave(name, name) : saveCurrentRun((document.getElementById('save-name-input').value || '').trim() || 'Run');
+            closeSaveDialog();
+            showUpgradeNotification(saved ? '💾 Overwrote “' + saved + '”' : '💾 Saved');
         });
 
         document.getElementById('btn-pause').addEventListener('click', (e) => {
