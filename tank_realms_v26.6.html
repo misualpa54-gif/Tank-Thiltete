@@ -87,21 +87,23 @@
         }
         .level-chip {
             display: inline-flex;
-            align-items: center;
-            gap: 8px;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 5px;
             letter-spacing: 0.5px;
+            padding: 6px 12px 8px !important;
+            min-width: 118px;
         }
-        .level-chip .xp-bar-container { width: 56px; height: 4px; margin-top: 0; }
-        #hud-bottom { bottom: max(12px, env(safe-area-inset-bottom)); }
-        #hp-panel {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            background: rgba(0,0,0,0.5);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 11px;
-            padding: 4px 12px;
+        .level-chip .lv-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .level-chip .xp-bar-container { width: 100%; height: 4px; margin-top: 0; }
+        .level-chip .hp-bar-under {
+            width: 100%;
+            height: 8px;
+            margin-top: 0;
+            border-radius: 5px;
         }
+        #hud-bottom { display: none; }
+        #hp-panel { display: none; }
         #hp-panel .health-bar-container { width: 110px; height: 9px; margin-top: 0; }
         .hp-text { font-size: 13px; font-weight: 700; min-width: 48px; text-shadow: 0 1px 3px rgba(0,0,0,0.95); }
         #minimap { margin-top: 54px; }
@@ -345,7 +347,7 @@
             margin-top: 0;
         }
         .hp-text { font-size: 15px; font-weight: 700; min-width: 56px; text-shadow: 0 1px 3px rgba(0,0,0,0.95); }
-        #hp-panel.low-hp {
+        #hp-panel.low-hp, .level-chip.low-hp {
             animation: lowHpPulse 0.9s ease-in-out infinite;
             border-color: rgba(220,38,38,0.7);
         }
@@ -532,14 +534,14 @@
 
         #upgrade-notification {
             position: fixed;
-            /* v3 UI: notifications live in the lower third, out of combat sight-line */
-            bottom: 26%;
+            /* v26.6: short, small, out of the way */
+            bottom: 18%;
             top: auto;
             left: 50%;
-            transform: translate(-50%, 0) scale(0.9);
-            background: linear-gradient(135deg, rgba(102,126,234,0.85) 0%, rgba(118,75,162,0.85) 100%);
-            padding: 15px 35px;
-            border-radius: 20px;
+            transform: translate(-50%, 0) scale(0.92);
+            background: linear-gradient(135deg, rgba(102,126,234,0.78) 0%, rgba(118,75,162,0.78) 100%);
+            padding: 7px 16px;
+            border-radius: 12px;
             color: white;
             text-align: center;
             z-index: 100;
@@ -824,22 +826,17 @@
                 <div id="kill-feed"></div>
             </div>
             <div class="hud-center">
-                <div class="hud-chip level-chip">LV <span id="level">1</span>
+                <div class="hud-chip level-chip">
+                    <div class="lv-row">LV <span id="level">1</span></div>
                     <div class="xp-bar-container"><div class="xp-bar-fill" id="xp-bar"></div></div>
+                    <div class="health-bar-container hp-bar-under"><div class="health-bar-fill" id="hp-bar"></div></div>
                 </div>
             </div>
             <div class="hud-top-right">
                 <canvas id="minimap" width="84" height="84"></canvas>
             </div>
         </div>
-        <div id="hud-bottom">
-            <div id="hp-panel">
-                <div class="health-bar-container">
-                    <div class="health-bar-fill" id="hp-bar"></div>
-                </div>
-                <div class="hp-text">❤️ <span id="hp-text">100</span></div>
-            </div>
-        </div>
+        <div id="hud-bottom"></div>
     </div>
     <div id="vignette-overlay"></div>
     <div id="dmg-direction"></div>
@@ -866,8 +863,7 @@
     </div>
 
     <div id="upgrade-notification">
-        <h2 style="margin:0 0 5px 0;font-size:20px;">🌟 LEVEL UP!</h2>
-        <p id="upgrade-text" style="margin:0;opacity:0.9;font-size:14px;">Speed increased!</p>
+        <p id="upgrade-text" style="margin:0;opacity:0.95;font-size:13px;font-weight:700;letter-spacing:0.3px;">Speed increased!</p>
     </div>
 
     <div id="enemy-intro">
@@ -892,7 +888,7 @@
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">v26.5</div>
+        <div class="version-tag" id="version-tag">v26.6</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -1580,6 +1576,12 @@
         function getTerrainHeight(x, z) {
             return blendedHeight(x, z); // v20: morph-aware during realm transitions
         }
+        function propHeight(x, z) {
+            // v26.6: plant trees/rocks/grass on the DESTINATION ground during a morph
+            // so they are not left floating when the blend finishes.
+            if (biomeBlend && biomeBlend.to) return terrainHeightRaw(x, z, biomeBlend.to);
+            return getTerrainHeight(x, z);
+        }
 
         function getTerrainNormal(x, z, target) {
             const delta = 0.5;
@@ -1948,14 +1950,14 @@
                 const parts = k.split(',');
                 return { k, cx: +parts[0], cz: +parts[1], d: ((+parts[0]) * CHUNK - px) ** 2 + ((+parts[1]) * CHUNK - pz) ** 2 };
             }).sort((a, b) => a.d - b.d);
-            waveOrder.forEach(w => buildChunkTask(w.cx, w.cz, true)); // v22: whole wave queued at once (front keeps order)
+            waveOrder.forEach(w => buildChunkTask(w.cx, w.cz, true, true)); // v26.6: replace existing chunks so props sit on new ground
             biomeBlend.rebuildQueue = []; // drained: tasks are tracked in chunkTasks now
             // announce the realm
             const biomeEl = document.getElementById('biome-name');
             biomeEl.textContent = to.name;
             biomeEl.classList.add('show');
             clearTimeout(biomeEl._t);
-            biomeEl._t = setTimeout(() => biomeEl.classList.remove('show'), 3000);
+            biomeEl._t = setTimeout(() => biomeEl.classList.remove('show'), 1400);
             streamChunks(px, pz, false); // any missing chunks queue normally (target biome)
         }
         const _lerpColor = new THREE.Color(), _lerpColor2 = new THREE.Color();
@@ -2324,7 +2326,7 @@
                     let idx = 0;
                     for (let i = 0; i < Math.floor(blades / 5) && idx < blades; i++) {
                         const cxp = ox + rnd() * CHUNK, czp = oz + rnd() * CHUNK;
-                        const ty = getTerrainHeight(cxp, czp);
+                        const ty = propHeight(cxp, czp);
                         for (let j = 0; j < 5 && idx < blades; j++) {
                             _dummy.position.set(cxp + (rnd() - 0.5) * 0.5, ty + 0.4, czp + (rnd() - 0.5) * 0.5);
                             _dummy.rotation.set((rnd() - 0.5) * 0.3, 0, (rnd() - 0.5) * 0.3);
@@ -2359,9 +2361,10 @@
                 if (done) chunkTasks.shift();
             }
         }
-        function buildChunkTask(cx, cz, front) {
+        function buildChunkTask(cx, cz, front, replace) {
             const key = chunkKey(cx, cz);
-            if (envChunks.has(key) || chunkTasks.some(t => t.chunk.key === key)) return;
+            if (chunkTasks.some(t => t.chunk.key === key)) return;
+            if (!replace && envChunks.has(key)) return;
             const task = planEnvChunk(cx, cz);
             if (front) chunkTasks.unshift(task); else chunkTasks.push(task);
         }
@@ -2485,7 +2488,7 @@
                 const trunkMat = getEnvMat(biome.name + '|vtrunk', () => new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 1 }));
                 collect.push({ geo: new THREE.CylinderGeometry(0.14, 0.28, 1.8, 5), mat: trunkMat, matKey: 'vtrunk', cast: true, y: 0.9, rz: (rnd() - 0.5) * 0.3 });
             }
-            const terrainY = getTerrainHeight(x, z);
+            const terrainY = propHeight(x, z);
             const scale = 0.75 + rnd() * 0.4; // v19: 0.75-1.15 — uneven, mid-size
             const rotY = rnd() * Math.PI * 2;
             const m4 = new THREE.Matrix4().compose(
@@ -2528,7 +2531,7 @@
             if (biome.name.includes('Sakura')) rockColor = 0xb09898;
             if (biome.name.includes('Autumn')) rockColor = 0x8a6a4a;
             const rockMat = getEnvMat(biome.name + '|rock', () => new THREE.MeshStandardMaterial({ color: rockColor, roughness: 0.95, metalness: 0.1 }));
-            const terrainY = getTerrainHeight(x, z);
+            const terrainY = propHeight(x, z);
             const m4 = new THREE.Matrix4().compose(
                 new THREE.Vector3(x, terrainY + size * 0.3, z),
                 new THREE.Quaternion().setFromEuler(new THREE.Euler(rnd() * 0.4, rnd() * Math.PI * 2, rnd() * 0.4)),
@@ -2911,9 +2914,10 @@
                 this.targetTilt.y += this.acceleration.z * 2;
                 this.targetTilt.x += this.acceleration.x * 2;
 
-                // Terrain following - FIX FOR SINKING
+                // Terrain following — v26.6: sit on the surface; extra lift when tilted so hulls don't clip hills
                 const terrainY = getTerrainHeight(this.mesh.position.x, this.mesh.position.z);
-                this.mesh.position.y = terrainY + 0.1; // Slight offset above ground
+                const tiltDip = (Math.abs(this.currentTilt.x) + Math.abs(this.currentTilt.y)) * 0.45;
+                this.mesh.position.y = terrainY + 0.32 + tiltDip;
 
                 // v2 visuals: dust kick-up behind a moving tank (throttled, cheap)
                 if (this.isPlayer && state.quality !== 'low' && this.velocity.length() > 8 && Math.random() < 0.12) { // v25
@@ -2944,8 +2948,8 @@
                 const tiltGroup = this.mesh.children[0]; // Hull
                 if (tiltGroup) {
                     // We apply slight visual tilt to simulate suspension
-                    this.mesh.rotation.x = this.currentTilt.y * 0.3;
-                    this.mesh.rotation.z = this.currentTilt.x * 0.3;
+                    this.mesh.rotation.x = this.currentTilt.y * 0.14;
+                    this.mesh.rotation.z = this.currentTilt.x * 0.14;
                 }
             }
 
@@ -3058,7 +3062,7 @@
                     try { updateBossBar(); } catch (err) {}
                 }
                 if (this.isPlayer) SFX.engineStop(); // v23
-                createExplosion(this.mesh.position, this.isPlayer ? 70 : 35);
+                createExplosion(this.mesh.position, this.isPlayer ? 28 : 8);
                 scene.remove(this.mesh);
                 disposeObject3D(this.mesh); // FIX (Tier 2): free ~20 geometries + materials per tank
             }
@@ -3301,7 +3305,9 @@
             // FIX (Tier 2): particles use cached UNIT geometries + per-mesh scale
             // instead of a new (never-disposed) geometry per particle.
             // Uniform/scaling math produces identical shapes to the originals.
-            for (let i = 0; i < count; i++) {
+            // v26.6: cap debris so deaths don't fog the screen
+            const debrisN = Math.min(count, isArmor ? 14 : 10);
+            for (let i = 0; i < debrisN; i++) {
                 const size = (0.2 + Math.random() * 0.5) * (isArmor ? 0.8 : 1);
                 let geo, mat, sx = size, sy = size, sz = size;
 
@@ -3379,7 +3385,7 @@
             }
 
             // Smoke/Dust
-            const smokeCount = isArmor ? 6 : (isGround ? 5 : 4);
+            const smokeCount = isArmor ? 3 : (isGround ? 2 : 2);
             for (let i = 0; i < smokeCount; i++) {
                 const smokeRadius = 0.8 + Math.random() * 0.6; // FIX (Tier 2): shared unit sphere + scale
                 let smokeColor = 0x6a6a6a;
@@ -3627,7 +3633,7 @@
             if (enemy.mesh) try { showScorePopup(enemy.mesh.position.x, enemy.mesh.position.z, points); } catch (err) {}
             if (enemy.isBoss) {
                 try {
-                    if (enemy.mesh) createExplosion(enemy.mesh.position.clone(), 120, 0xffaa00, 'armor', enemy.type);
+                    if (enemy.mesh) createExplosion(enemy.mesh.position.clone(), 28, 0xffaa00, 'armor', enemy.type);
                     state.cameraShake = 0.8;
                     showBossBanner('🏆 ' + (ENEMY_TYPES[enemy.type]?.name || 'BOSS') + ' DEFEATED!');
                     SFX.bossDown(); SFX.vibrate([60, 40, 60, 40, 120]);
@@ -4058,7 +4064,15 @@
                 score: state.score, kills: state.kills, runTime: state.runTime, runCoins: state.runCoins,
                 playerStats: JSON.parse(JSON.stringify(state.playerStats)),
                 hp: player.hp, x: +player.mesh.position.x.toFixed(1), z: +player.mesh.position.z.toFixed(1),
-                biome: state.currentBiome
+                biome: state.currentBiome,
+                biomeStep: state.biomeStep, biomeNextIn: state.biomeNextIn,
+                overchargeUntil: state.overchargeUntil || 0,
+                runCoinBoost: state.runCoinBoost || 0,
+                shieldUp: !!state.shieldUp,
+                lastMissileAt: state.lastMissileAt || 0,
+                combo: state.combo || 0,
+                bossCount: state.bossCount || 0,
+                enemiesIntroduced: [...(state.enemiesIntroduced || [])]
             };
         }
 
@@ -4106,18 +4120,21 @@
 
             state.mode = mode; // v10
             state.diffMult = DIFFICULTIES[(opts && opts.difficulty) || 'normal'] || DIFFICULTIES.normal;
-            // v11: consume per-run boosts
-            const cons = consumables();
-            state.runCoinBoost = 0.2 * (cons.lucky || 0);
-            const freeCards = cons.headstart || 0;
-            const useOvercharge = (cons.overcharge || 0) > 0; // v26
-            const useAegis = (cons.aegis || 0) > 0;           // v26
-            cons.lucky = 0; cons.headstart = 0;
-            if (useOvercharge) cons.overcharge--;
-            if (useAegis) cons.aegis--;
-            try { saveGame(); } catch (e) {}
             if (mode === 'levels') state.levelsCfg.density = (opts && opts.density) || 10;
             const resume = mode === 'casual' && (opts && opts.resume);
+            // v11/v26.6: shop consumables only on a FRESH run — reloading a save must not eat them
+            const cons = consumables();
+            let freeCards = 0, useOvercharge = false, useAegis = false;
+            if (!resume) {
+                state.runCoinBoost = 0.2 * (cons.lucky || 0);
+                freeCards = cons.headstart || 0;
+                useOvercharge = (cons.overcharge || 0) > 0;
+                useAegis = (cons.aegis || 0) > 0;
+                cons.lucky = 0; cons.headstart = 0;
+                if (useOvercharge) cons.overcharge--;
+                if (useAegis) cons.aegis--;
+                try { saveGame(); } catch (e) {}
+            }
             state.score = resume ? opts.resume.score : 0;
             state.kills = resume ? opts.resume.kills : 0; // v2: run stats
             state.runTime = resume ? opts.resume.runTime : 0;
@@ -4138,24 +4155,35 @@
             state.lastRegenTime = clock.getElapsedTime();
             state.enemiesIntroduced = new Set();
             state.playerStats = { speed: 100, damage: 100, fireRate: 100, armor: 0, regen: 0, maxHp: 100, multishot: 0, crit: 0, pierce: 0, coinBonus: 0, healOnKill: 0, xpBonus: 0, adrenaline: 0, missile: 0, splash: 0, shield: 0 };
-            // v4 (Upgrades-B): apply permanent Armory bonuses + arm Second Wind
             const meta = state.meta || {};
-            state.playerStats.maxHp += (meta.hp || 0) * 20;
-            state.playerStats.damage += (meta.dmg || 0) * 8;
-            state.playerStats.speed += (meta.spd || 0) * 6;
-            state.playerStats.armor += (meta.armor || 0) * 4;
-            state.playerStats.regen += (meta.regen || 0) * 1; // v10: Repair Kit
-            state.playerStats.damage += (meta.dmg_inf || 0) * 1; // v26: Master Gunsmith (unlimited)
-            state.playerStats.maxHp += (meta.hp_inf || 0) * 2;   // v26: Reinforced Alloy (unlimited)
+            if (resume && opts.resume.playerStats) {
+                // v26.6: saved run already includes Armory + every level-up card
+                Object.assign(state.playerStats, opts.resume.playerStats);
+            } else {
+                state.playerStats.maxHp += (meta.hp || 0) * 20;
+                state.playerStats.damage += (meta.dmg || 0) * 8;
+                state.playerStats.speed += (meta.spd || 0) * 6;
+                state.playerStats.armor += (meta.armor || 0) * 4;
+                state.playerStats.regen += (meta.regen || 0) * 1;
+                state.playerStats.damage += (meta.dmg_inf || 0) * 1;
+                state.playerStats.maxHp += (meta.hp_inf || 0) * 2;
+            }
             state.reviveAvailable = (meta.revive || 0) > 0;
-            // v26: surge scheduling on the pause-safe run clock
             state.surgeActive = false;
             state.surgeNextAt = state.runTime + 70;
             state.surgeEndsAt = 0; state.surgeLastSpawn = 0;
-            // v26: biome rotation cadence
-            state.biomeStep = Math.floor((state.level - 1) / 3);
-            state.biomeNextIn = 1 + Math.floor(Math.random() * 3);
-            state.overchargeUntil = useOvercharge ? state.runTime + 60 : 0; // v26
+            if (resume) {
+                state.biomeStep = opts.resume.biomeStep != null ? opts.resume.biomeStep : Math.floor((state.level - 1) / 3);
+                state.biomeNextIn = opts.resume.biomeNextIn != null ? opts.resume.biomeNextIn : 1;
+                state.overchargeUntil = opts.resume.overchargeUntil || 0;
+                state.runCoinBoost = opts.resume.runCoinBoost || 0;
+                state.combo = opts.resume.combo || 0;
+                if (opts.resume.enemiesIntroduced) state.enemiesIntroduced = new Set(opts.resume.enemiesIntroduced);
+            } else {
+                state.biomeStep = Math.floor((state.level - 1) / 3);
+                state.biomeNextIn = 1 + Math.floor(Math.random() * 3);
+                state.overchargeUntil = useOvercharge ? state.runTime + 60 : 0;
+            }
             state.targetEnemy = null;
             state.cameraShake = 0;
             state.bossActive = null; // v6(C)
@@ -4176,16 +4204,20 @@
             player.shieldRing.position.y = 1.2;
             player.shieldRing.visible = false;
             player.mesh.add(player.shieldRing);
-            state.shieldUp = !!useAegis; state.shieldReadyAt = 0; state.lastMissileAt = 0; // v26: Aegis Kit
+            state.shieldUp = resume ? !!opts.resume.shieldUp : !!useAegis;
+            state.shieldReadyAt = 0;
+            state.lastMissileAt = resume ? (opts.resume.lastMissileAt || 0) : 0;
             if (state.shieldUp) player.shieldRing.visible = true;
+            player.maxHp = state.playerStats.maxHp;
+            player.hp = player.maxHp;
             if (resume) {
-                Object.assign(state.playerStats, opts.resume.playerStats);
-                player.maxHp = state.playerStats.maxHp;
                 player.hp = opts.resume.hp;
+                player.maxHp = state.playerStats.maxHp;
                 player.mesh.position.set(opts.resume.x, 0, opts.resume.z);
+                if (typeof opts.resume.bossCount === 'number') state.bossCount = opts.resume.bossCount;
                 loadBiome(opts.resume.biome);
             } else {
-                loadBiome(Math.floor((state.level - 1) / 3)); // levels mode may start deeper
+                loadBiome(Math.floor((state.level - 1) / 3));
             }
             updateHUD();
 
@@ -4237,7 +4269,7 @@
             const notif = document.getElementById('upgrade-notification');
             document.getElementById('upgrade-text').textContent = text;
             notif.classList.add('show');
-            setTimeout(() => notif.classList.remove('show'), 2500);
+            setTimeout(() => notif.classList.remove('show'), 900);
         }
 
         function showEnemyIntro(type) {
@@ -4249,7 +4281,7 @@
             document.getElementById('enemy-desc').textContent = data.desc;
             const intro = document.getElementById('enemy-intro');
             intro.classList.add('show');
-            setTimeout(() => intro.classList.remove('show'), 3000);
+            setTimeout(() => intro.classList.remove('show'), 1100);
         }
 
         function spawnEnemy() {
@@ -4801,7 +4833,7 @@
                 if (!state.shieldReadyAt) state.shieldReadyAt = clock.getElapsedTime() + sInt;
                 else if (clock.getElapsedTime() >= state.shieldReadyAt && !state.shieldUp) {
                     state.shieldUp = true;
-                    showUpgradeNotification('🛡️ Shield ready');
+                    /* v26.6: skip the big toast — shield recharge is frequent and distracting */
                 }
                 if (player.shieldRing) player.shieldRing.visible = !!state.shieldUp;
             } else if (player.shieldRing) player.shieldRing.visible = false;
@@ -5019,6 +5051,10 @@
 
                 const panel = document.getElementById('hp-panel'); // v2 UI: low-HP pulse
                 if (panel) panel.classList.toggle('low-hp', hpPct < 25 && hpPct > 0);
+                const chip = document.querySelector('.level-chip');
+                if (chip) chip.classList.toggle('low-hp', hpPct < 25 && hpPct > 0);
+                const hpNum = document.getElementById('hp-text');
+                if (hpNum) hpNum.style.display = 'none';
             }
         }
 
