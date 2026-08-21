@@ -104,6 +104,7 @@
         }
         #hp-panel .health-bar-container { width: 110px; height: 9px; margin-top: 0; }
         #hp-panel { padding: 3px 10px; }
+        #hp-pct { font-size: 11px; font-weight: 700; color: #fff; min-width: 30px; text-align: right; text-shadow: 0 1px 3px rgba(0,0,0,0.95); }
         #hp-panel .hp-text { display: none; } /* v27.4 (owner): scale display, no numbers */
         .hp-text { font-size: 13px; font-weight: 700; min-width: 48px; text-shadow: 0 1px 3px rgba(0,0,0,0.95); }
         #minimap { margin-top: 54px; }
@@ -538,21 +539,23 @@
 
         #upgrade-notification {
             position: fixed;
-            /* v3 UI: notifications live in the lower third, out of combat sight-line */
-            bottom: 26%;
-            top: auto;
+            /* v27.5 (owner): smaller, quicker, tucked under the level + HP column */
+            top: calc(max(15px, env(safe-area-inset-top)) + 88px);
+            bottom: auto;
             left: 50%;
             transform: translate(-50%, 0) scale(0.9);
             background: linear-gradient(135deg, rgba(102,126,234,0.85) 0%, rgba(118,75,162,0.85) 100%);
-            padding: 15px 35px;
-            border-radius: 20px;
+            padding: 5px 14px;
+            border-radius: 10px;
             color: white;
+            font-size: 12px;
+            font-weight: 700;
             text-align: center;
             z-index: 100;
             opacity: 0;
             pointer-events: none;
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            box-shadow: 0 10px 40px rgba(102,126,234,0.3);
+            transition: all 0.18s ease;
+            box-shadow: 0 6px 24px rgba(102,126,234,0.3);
             backdrop-filter: blur(5px);
         }
 
@@ -563,18 +566,21 @@
 
         #enemy-intro {
             position: fixed;
-            bottom: 120px;
+            /* v27.5 (owner): smaller + moved under the HP column, above upgrade notifications */
+            top: calc(max(15px, env(safe-area-inset-top)) + 130px);
+            bottom: auto;
             left: 50%;
-            transform: translateX(-50%) translateY(20px);
+            transform: translateX(-50%) translateY(10px);
             background: rgba(0,0,0,0.8);
-            padding: 15px 30px;
-            border-radius: 12px;
+            padding: 5px 14px;
+            border-radius: 10px;
             color: white;
+            font-size: 12px;
             text-align: center;
             z-index: 15;
             opacity: 0;
             pointer-events: none;
-            transition: all 0.4s ease;
+            transition: all 0.18s ease;
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255,255,255,0.1);
         }
@@ -838,6 +844,8 @@
                     <div class="health-bar-container">
                         <div class="health-bar-fill" id="hp-bar"></div>
                     </div>
+                    <!-- v27.5 (owner): percentage next to the bar -->
+                    <span id="hp-pct">100%</span>
                     <!-- kept for code compatibility; hidden by CSS (#hp-panel .hp-text) -->
                     <div class="hp-text">❤️ <span id="hp-text">100</span></div>
                 </div>
@@ -1731,9 +1739,25 @@
 
             return {
                 // -- one-shots --
-                shoot() { tone(190, 0.09, 'square', 0.05, 90); noise(0.06, 2600, 500, 0.05); },
-                enemyShoot() { tone(120, 0.11, 'square', 0.03, 60); },
-                hit() { tone(340, 0.05, 'triangle', 0.05, 240); },
+                shoot() { // v27.5 (owner): fire sound was annoying — quieter, pitch-varied, and throttled so rapid fire can't machine-gun the ears
+                    const t = clock.getElapsedTime();
+                    if (t - (this._ls || 0) < 0.08) return;
+                    this._ls = t;
+                    tone(172 + Math.random() * 36, 0.08, 'square', 0.028, 82);
+                    noise(0.05, 2600, 500, 0.025);
+                },
+                enemyShoot() { // v27.5 (owner): softer + throttled
+                    const t = clock.getElapsedTime();
+                    if (t - (this._les || 0) < 0.05) return;
+                    this._les = t;
+                    tone(112 + Math.random() * 20, 0.08, 'square', 0.02, 58);
+                },
+                hit() { // v27.5 (owner): softer + throttled
+                    const t = clock.getElapsedTime();
+                    if (t - (this._lh || 0) < 0.07) return;
+                    this._lh = t;
+                    tone(340, 0.04, 'triangle', 0.032, 240);
+                },
                 crit() { tone(660, 0.07, 'sine', 0.06); setTimeout(() => tone(990, 0.08, 'sine', 0.05), 45); },
                 kill() { tone(523, 0.07, 'sine', 0.045); setTimeout(() => tone(784, 0.09, 'sine', 0.04), 60); },
                 explosion(size) {
@@ -3021,7 +3045,7 @@
                 this.isDead = true;
                 if (this.isPlayer) SFX.engineStop(); // v23
                 removeHpBar(this); // v27.3: free the name/HP bar with the tank
-                    createExplosion(this.mesh.position, this.isPlayer ? 70 : 16); // v27.4 (owner): lighter death smoke
+                    createExplosion(this.mesh.position, this.isPlayer ? 70 : 9); // v27.5 (owner): smoke still too much
                 scene.remove(this.mesh);
                 disposeObject3D(this.mesh); // FIX (Tier 2): free ~20 geometries + materials per tank
             }
@@ -3116,7 +3140,7 @@
         }
         function missileBlast(pos) { // 2.5× splash damage in a 6.5-unit radius
             const dmg = CONFIG.baseDamage * (state.playerStats.damage / 100) * 2.5;
-            createExplosion(pos, 34, 0xff8844, 'armor');
+            createExplosion(pos, 14, 0xff8844, 'armor'); // v27.5 (owner): lighter
             SFX.explosion(34);
             for (let j = enemies.length - 1; j >= 0; j--) {
                 const e = enemies[j];
@@ -3348,7 +3372,7 @@
             }
 
             // Smoke/Dust
-            const smokeCount = isArmor ? 3 : (isGround ? 5 : 4); // v27.4 (owner): armor deaths puff less
+            const smokeCount = isArmor ? 2 : (isGround ? 4 : 3); // v27.5 (owner): even less smoke per blast
             for (let i = 0; i < smokeCount; i++) {
                 const smokeRadius = 0.8 + Math.random() * 0.6; // FIX (Tier 2): shared unit sphere + scale
                 let smokeColor = 0x6a6a6a;
@@ -4201,7 +4225,7 @@
             const notif = document.getElementById('upgrade-notification');
             document.getElementById('upgrade-text').textContent = text;
             notif.classList.add('show');
-            setTimeout(() => notif.classList.remove('show'), 1400); // v27.4 (owner): shorter, less distracting
+            setTimeout(() => notif.classList.remove('show'), 900); // v27.5 (owner): quicker, smaller, under the HP bar
         }
 
         function showEnemyIntro(type) {
@@ -4213,7 +4237,7 @@
             document.getElementById('enemy-desc').textContent = data.desc;
             const intro = document.getElementById('enemy-intro');
             intro.classList.add('show');
-            setTimeout(() => intro.classList.remove('show'), 1800); // v27.4 (owner): shorter, less distracting
+            setTimeout(() => intro.classList.remove('show'), 1200); // v27.5 (owner): quicker, smaller
         }
 
         function spawnEnemy() {
@@ -4248,12 +4272,14 @@
         // (fill = scale.x + material colour, so it always mirrors real damage), and the
         // enemy NAME is a tiny static texture shared by every enemy of that type.
         const HP_BAR_W = 2.6;
+        const _eliteGold = new THREE.Color(0xffd479); // v27.5: elite sheen tint
         const _enemyNameAssets = {}; // type -> { tex, mat } — static, shared, never disposed per enemy
         let _hpBarBgMat = null;
-        function enemyNameAssets(type) {
-            if (_enemyNameAssets[type]) return _enemyNameAssets[type];
+        function enemyNameAssets(type, elite) {
+            const ck = type + (elite ? '|E' : '');
+            if (_enemyNameAssets[ck]) return _enemyNameAssets[ck];
             const def = ENEMY_TYPES[type] || {};
-            const name = String(def.name || type).toUpperCase();
+            const name = (elite ? '★ ' : '') + String(def.name || type).toUpperCase();
             const cv = document.createElement('canvas');
             cv.width = 160; cv.height = 40;
             const ctx = cv.getContext('2d');
@@ -4261,14 +4287,14 @@
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(8, 12, 20, 0.9)';
             ctx.strokeText(name, 80, 21);
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+            ctx.fillStyle = elite ? 'rgba(255, 212, 121, 0.97)' : 'rgba(255, 255, 255, 0.92)';
             ctx.fillText(name, 80, 21);
             const tex = new THREE.CanvasTexture(cv);
             tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
             const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false, opacity: 0.95 });
             mat.userData.__shared = true; // survives per-enemy disposal (disposeObject3D skips shared)
-            _enemyNameAssets[type] = { tex, mat };
-            return _enemyNameAssets[type];
+            _enemyNameAssets[ck] = { tex, mat };
+            return _enemyNameAssets[ck];
         }
         function hpBarBgMaterial() {
             if (!_hpBarBgMat) {
@@ -4281,9 +4307,9 @@
             try {
                 const group = new THREE.Group();
                 group.rotation.x = -Math.PI / 2; // flat like the player ring — readable from the follow camera
-                const s = (enemy.typeData && enemy.typeData.size) || 1;
+                const s = ((enemy.typeData && enemy.typeData.size) || 1) * (enemy.isElite ? 1.18 : 1); // v27.5: elites sit a touch higher
 
-                const name = new THREE.Mesh(SHARED_GEO.plane1, enemyNameAssets(enemy.type).mat);
+                const name = new THREE.Mesh(SHARED_GEO.plane1, enemyNameAssets(enemy.type, enemy.isElite).mat);
                 name.scale.set(1.7, 0.425, 1);
                 name.position.y = 0.55;
                 name.renderOrder = 997;
@@ -4337,6 +4363,25 @@
             enemy.speedMult = sc.spd;
             enemy.pointValue = Math.round((ENEMY_TYPES[type].points || 100) * sc.pts);
             if (type === 'juggernaut') enemy.armorFlat = 2.5 + state.level * 0.12; // v27.2: lighter plating (device report: too tanky at lv12)
+            // v27.5 (owner: "lv15+ gets repetitive"): ELITE variants — rare golden
+            // upgrades mixed into normal waves. Tankier, deadlier, worth 3x points
+            // and coins, and they look the part (gold sheen, bigger, starred name).
+            const eliteChance = state.level >= 8 ? Math.min(0.12, 0.04 + (state.level - 8) * 0.004) : 0;
+            if (Math.random() < eliteChance) {
+                enemy.isElite = true;
+                enemy.hp = enemy.maxHp = Math.round(enemy.maxHp * 2.2);
+                enemy.damageMult = (enemy.damageMult || 1) * 1.3;
+                enemy.speedMult = (enemy.speedMult || 1) * 1.12;
+                enemy.armorFlat = (enemy.armorFlat || 0) + 2;
+                enemy.pointValue = Math.round((enemy.pointValue || 100) * 3);
+                enemy.mesh.scale.multiplyScalar(1.18);
+                enemy.mesh.traverse(c => {
+                    if (c.isMesh && c.material && c.material.color && !(c.material.userData && c.material.userData.__shared)) {
+                        c.material.color.lerp(_eliteGold, 0.45); // golden sheen
+                    }
+                });
+                tutorialTip('elite', '⭐ <b>ELITE!</b> Golden tanks are tougher — but pay <b>3×</b> points &amp; coins', 5000);
+            }
             enemy.mesh.position.set(x, 0, z);
             attachHpBar(enemy); // v27.3: name + working HP bar over every non-boss enemy
             enemies.push(enemy);
@@ -4487,7 +4532,7 @@
                         e.aimAt(player.mesh.position, dt);
                         if (now >= e.nextAttackAt) {
                             e.nextAttackAt = now + e.attackInterval;
-                            createExplosion(e.mesh.position.clone(), 50, 0x88aaff, 'armor');
+                            createExplosion(e.mesh.position.clone(), 18, 0x88aaff, 'armor'); // v27.5 (owner): lighter
                             SFX.explosion(50);
                             state.cameraShake = Math.max(state.cameraShake, 0.7);
                             const slamD = e.mesh.position.distanceTo(player.mesh.position);
@@ -4563,10 +4608,10 @@
                     e.aimAt(player.mesh.position, dt);
                     if (dist < 40 && enemyFireRoll(0.012 * (ENEMY_TYPES.juggernaut.fireRate || 0.3), dt)) shoot(e);
                 } else if (e.type === 'bomber') { // v5: kamikaze — sprint and detonate
-                    e.move(dt, _sv1.set(toPlayer.x, toPlayer.z).normalize());
+                        e.move(dt, _sv1.set(toPlayer.x, toPlayer.z).normalize());
                     e.aimAt(player.mesh.position, dt);
                     if (dist < 4.5) {
-                        createExplosion(e.mesh.position.clone(), 45, 0xff4500, 'armor', 'bomber');
+                        createExplosion(e.mesh.position.clone(), 20, 0xff4500, 'armor', 'bomber'); // v27.5 (owner): lighter
                         player.takeDamage(ENEMY_TYPES.bomber.damage * (state.diffMult.dmg || 1) * (e.damageMult || 1)); // v10: difficulty + v26
                         showDamageDirection(e.mesh.position.x, e.mesh.position.z);
                         e.die();
@@ -4702,7 +4747,7 @@
                                     
                                     const enemyColor = ENEMY_TYPES[enemy.type]?.color || 0xff0000;
                                     // Pass enemy type for specific visual effects
-                                    createExplosion(b.group.position, isCrit ? 26 : 18, enemyColor, 'armor', enemy.type);
+                                    createExplosion(b.group.position, isCrit ? 11 : 7, enemyColor, 'armor', enemy.type); // v27.5 (owner): per-hit effects way down — this was the real smoke spam
                                     
                                     if (enemy.isDead) {
                                         const points = enemy.pointValue || ENEMY_TYPES[enemy.type]?.points || 100; // v26
@@ -4743,7 +4788,7 @@
                         if (dx*dx + dz*dz < 2.5*2.5 && dy < 3.8) {
                             showDamageDirection(b.group.position.x, b.group.position.z); // v2 UI
                             player.takeDamage(b.group.userData.damage);
-                            createExplosion(b.group.position, 14, selectedSkinColor(), 'armor'); // v10: skin color
+                            createExplosion(b.group.position, 6, selectedSkinColor(), 'armor'); // v10 skin color, v27.5 (owner): lighter
                             
                             dom('damage-overlay').style.opacity = '0.5'; // FIX (Tier 4)
                             setTimeout(() => dom('damage-overlay').style.opacity = '0', 150);
@@ -5092,6 +5137,7 @@
                 const hpPct = Math.max(0, (player.hp / player.maxHp) * 100);
                 const bar = dom('hp-bar');
                 bar.style.width = hpPct + '%';
+                if (dom('hp-pct')) dom('hp-pct').textContent = Math.round(hpPct) + '%'; // v27.5 (owner): % next to the bar
                 dom('hp-text').textContent = Math.max(0, Math.round(player.hp)); // v2 UI
                 
                 if (hpPct < 30) bar.style.background = 'linear-gradient(90deg, #dc2626, #ef4444)';

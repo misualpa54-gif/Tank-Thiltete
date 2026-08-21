@@ -317,7 +317,7 @@ ev("(function(){ player.maxHp = 200; player.hp = 80; updateHUD(); return 'set'; 
 const hpWidth = ev("document.getElementById('hp-bar').style.width");
 check('v27.4: HP bar shows 40% width after damage', hpWidth === '40%', 'got ' + hpWidth);
 const smokeN = ev("(function(){ var n0 = particles.length; var e = makeScaledEnemy('scout', 30, 30); e.die(); return particles.length - n0; })()");
-check('v27.4: enemy death effects are lighter (10-21 particles)', smokeN >= 10 && smokeN <= 21, 'particles=' + smokeN);
+check('v27.4: enemy death effects are lighter (6-13 particles)', smokeN >= 6 && smokeN <= 13, 'particles=' + smokeN);
 step(2);
 const offDelta = ev("(function(){ var ty = getTerrainHeight(player.mesh.position.x, player.mesh.position.z); return Math.abs(player.mesh.position.y - (ty + 0.3)); })()");
 check('v27.4: player rides 0.3 above terrain (anti-sinking)', offDelta < 0.05, 'delta=' + offDelta);
@@ -381,6 +381,20 @@ const morphRes = ev("(function(){ var pre = 0; envChunks.forEach(function(c){ if
 check('v27.4: morph completes (blend cleared)', morphRes.blend === true, 'frames=' + mFrames + '/' + dFrames);
 check('v27.4: ALL chunks rebuilt at final heights (no floating pre-morph scenery)', morphRes.total > 0 && morphRes.pre === 0, JSON.stringify(morphRes));
 check('v27.4: morph + forced rebuild ran clean', cleanSoFar(), errDetail());
+
+// ---------------------------------------------------------------- 14. v27.5: elites, fire-sound throttle, HP %
+quietBoard();
+const elite = ev("(function(){ state.level = 15; var orig = Math.random; Math.random = function(){ return 0.001; }; var e; try { e = makeScaledEnemy('scout', 40, 40); } finally { Math.random = orig; } var c = makeScaledEnemy('scout', 41, 41); return { elite: !!e.isElite, ctrl: !c.isElite, hpR: e.maxHp / c.maxHp, ptsR: e.pointValue / c.pointValue, dmgR: e.damageMult / c.damageMult, scaleR: e.mesh.scale.x / c.mesh.scale.x, nameE: !!_enemyNameAssets['scout|E'], bar: !!e.hpBar, tip: !!(state.tutorialTips || {}).elite }; })()");
+check('v27.5: forced low roll spawns an ELITE (control does not)', elite.elite === true && elite.ctrl === true, JSON.stringify({ e: elite.elite, c: elite.ctrl }));
+check('v27.5: elite has 2.2x HP and 3x points', Math.abs(elite.hpR - 2.2) < 0.05 && Math.abs(elite.ptsR - 3) < 0.05, 'hpR=' + elite.hpR.toFixed(3) + ' ptsR=' + elite.ptsR.toFixed(2));
+check('v27.5: elite hits harder (x1.3) and is bigger (x1.18)', Math.abs(elite.dmgR - 1.3) < 0.01 && Math.abs(elite.scaleR - 1.18) < 0.01, 'dmgR=' + elite.dmgR.toFixed(3) + ' scaleR=' + elite.scaleR.toFixed(3));
+check('v27.5: elite starred name texture cached + bar attached', elite.nameE === true && elite.bar === true);
+const sfxN = ev("(function(){ shoot(player); var a = SFX._ls; for (var i = 0; i < 6; i++) shoot(player); var b = SFX._ls; return { started: !!a, movedWithinBurst: b !== a }; })()");
+check('v27.5: fire sound throttled (7-shot burst -> sound fires once)', sfxN.started === true && sfxN.movedWithinBurst === false, JSON.stringify(sfxN));
+ev("(function(){ player.maxHp = 200; player.hp = 90; updateHUD(); return 'set'; })()");
+const pctTxt = ev("document.getElementById('hp-pct').textContent");
+check('v27.5: HP percentage shows next to the bar (45%)', pctTxt === '45%', 'got ' + pctTxt);
+quietBoard();
 
 // ---------------------------------------------------------------- report
 console.log(NL + '================ RESULTS ================');
