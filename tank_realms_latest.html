@@ -3001,7 +3001,7 @@
             die() {
                 this.isDead = true;
                 if (this.isPlayer) SFX.engineStop(); // v23
-                if (this.hpBar) { this.hpBar.tex.dispose(); this.hpBar.mat.dispose(); } // v27.2: free the bar texture with the tank
+                removeHpBar(this); // v27.3: free the name/HP bar with the tank
                 createExplosion(this.mesh.position, this.isPlayer ? 70 : 35);
                 scene.remove(this.mesh);
                 disposeObject3D(this.mesh); // FIX (Tier 2): free ~20 geometries + materials per tank
@@ -4003,7 +4003,7 @@
             state.input = { x: 0, y: 0, isFiring: false };
             SFX.engineStop(); SFX.ambientStop(); SFX.musicStop(); // v24
             if (player && scene) { scene.remove(player.mesh); disposeObject3D(player.mesh); }
-            enemies.forEach(e => { scene.remove(e.mesh); disposeObject3D(e.mesh); }); enemies = [];
+            enemies.forEach(e => { removeHpBar(e); scene.remove(e.mesh); disposeObject3D(e.mesh); }); enemies = [];
             bullets.forEach(b => scene.remove(b.group)); bullets = [];
             missiles.forEach(m => scene.remove(m.group)); missiles = []; // v24
             particles.forEach(p => { scene.remove(p.mesh); disposeObject3D(p.mesh); }); particles = [];
@@ -4023,7 +4023,7 @@
             // FIX (Tier 2): dispose GPU resources of everything from the previous run
             // (bullets use shared cached resources, so removing them from the scene is enough)
             if (player) { scene.remove(player.mesh); disposeObject3D(player.mesh); }
-            enemies.forEach(e => { scene.remove(e.mesh); disposeObject3D(e.mesh); });
+            enemies.forEach(e => { removeHpBar(e); scene.remove(e.mesh); disposeObject3D(e.mesh); });
             bullets.forEach(b => scene.remove(b.group));
             missiles.forEach(m => scene.remove(m.group)); // v26: in-flight missiles must not leak into the next run
             particles.forEach(p => { scene.remove(p.mesh); disposeObject3D(p.mesh); });
@@ -4205,22 +4205,65 @@
 
         // v26: single place where an enemy is built and level-scaled, so every spawn
         // path (spawner, wasp packs, boss reinforcements) ramps identically.
-        // v27.2 (owner request): a small HP bar floats over every non-boss enemy.
-        // One sprite per enemy (1 draw call), redrawn only when hp crosses a 5% step,
-        // so there is zero per-frame cost. Bosses keep the big top-screen bar.
+        // v27.3 (owner feedback round 2): the previous canvas-texture fill never showed
+        // on the device GPU — bars rendered as permanently empty boxes. Rebuilt from
+        // texture-free primitives: the bar background and FILL are shared flat planes
+        // (fill = scale.x + material colour, so it always mirrors real damage), and the
+        // enemy NAME is a tiny static texture shared by every enemy of that type.
+        const HP_BAR_W = 2.6;
+        const _enemyNameAssets = {}; // type -> { tex, mat } — static, shared, never disposed per enemy
+        let _hpBarBgMat = null;
+        function enemyNameAssets(type) {
+            if (_enemyNameAssets[type]) return _enemyNameAssets[type];
+            const def = ENEMY_TYPES[type] || {};
+            const name = String(def.name || type).toUpperCase();
+            const cv = document.createElement('canvas');
+            cv.width = 160; cv.height = 40;
+            const ctx = cv.getContext('2d');
+            ctx.font = 'bold 22px system-ui, sans-serif';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(8, 12, 20, 0.9)';
+            ctx.strokeText(name, 80, 21);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+            ctx.fillText(name, 80, 21);
+            const tex = new THREE.CanvasTexture(cv);
+            tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
+            const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false, opacity: 0.95 });
+            mat.userData.__shared = true; // survives per-enemy disposal (disposeObject3D skips shared)
+            _enemyNameAssets[type] = { tex, mat };
+            return _enemyNameAssets[type];
+        }
+        function hpBarBgMaterial() {
+            if (!_hpBarBgMat) {
+                _hpBarBgMat = new THREE.MeshBasicMaterial({ color: 0x0a0f14, transparent: true, opacity: 0.75, depthWrite: false, depthTest: false });
+                _hpBarBgMat.userData.__shared = true;
+            }
+            return _hpBarBgMat;
+        }
         function attachHpBar(enemy) {
             try {
-                const cv = document.createElement('canvas');
-                cv.width = 64; cv.height = 10;
-                const tex = new THREE.CanvasTexture(cv);
-                tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false; // tiny NPOT canvas
-                const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
-                const spr = new THREE.Sprite(mat);
+                const group = new THREE.Group();
+                group.rotation.x = -Math.PI / 2; // flat like the player ring — readable from the follow camera
                 const s = (enemy.typeData && enemy.typeData.size) || 1;
-                spr.scale.set(2.4, 0.375, 1);
-                spr.position.set(0, s * 2.2 + 0.8, 0);
-                enemy.mesh.add(spr);
-                enemy.hpBar = { spr, mat, tex, cv, drawn: -2 };
+
+                const name = new THREE.Mesh(SHARED_GEO.plane1, enemyNameAssets(enemy.type).mat);
+                name.scale.set(1.7, 0.425, 1);
+                name.position.y = 0.55;
+                name.renderOrder = 997;
+
+                const bg = new THREE.Mesh(SHARED_GEO.plane1, hpBarBgMaterial());
+                bg.scale.set(HP_BAR_W, 0.34, 1);
+                bg.renderOrder = 998;
+
+                const fill = new THREE.Mesh(SHARED_GEO.plane1, new THREE.MeshBasicMaterial({ color: 0x22c55e, transparent: true, opacity: 0.95, depthWrite: false, depthTest: false }));
+                fill.scale.set(HP_BAR_W, 0.24, 1);
+                fill.position.z = 0.01; // hair above the background once the group is flat
+                fill.renderOrder = 999;
+
+                group.add(name, bg, fill);
+                group.position.set(enemy.mesh.position.x, enemy.mesh.position.y + s * 2.2 + 0.9, enemy.mesh.position.z);
+                scene.add(group);
+                enemy.hpBar = { group, fill, barW: HP_BAR_W, yOff: s * 2.2 + 0.9 };
                 updateHpBar(enemy);
             } catch (e) { /* bars are cosmetic — never block a spawn */ }
         }
@@ -4228,16 +4271,21 @@
             const b = enemy.hpBar;
             if (!b) return;
             const pct = Math.max(0, Math.min(1, enemy.hp / enemy.maxHp));
-            const bucket = Math.round(pct * 20) / 20; // redraw at 5% steps — crisp + cheap
-            if (bucket === b.drawn) return;
-            b.drawn = bucket;
-            const ctx = b.cv.getContext('2d');
-            ctx.clearRect(0, 0, 64, 10);
-            ctx.fillStyle = 'rgba(8, 12, 20, 0.85)';
-            ctx.fillRect(0, 0, 64, 10);
-            ctx.fillStyle = pct > 0.5 ? '#22c55e' : pct > 0.25 ? '#eab308' : '#ef4444';
-            ctx.fillRect(1, 1, Math.max(0, 62 * pct), 8);
-            b.tex.needsUpdate = true;
+            b.fill.scale.x = Math.max(0.0001, b.barW * pct);       // anchored left:
+            b.fill.position.x = -(b.barW * (1 - pct)) / 2;         // shrinks right-to-left
+            b.fill.material.color.setHex(pct > 0.5 ? 0x22c55e : pct > 0.25 ? 0xeab308 : 0xef4444);
+        }
+        function syncHpBar(e) { // rides the enemy loop — one position copy per enemy per frame
+            const b = e.hpBar;
+            if (!b) return;
+            b.group.position.set(e.mesh.position.x, e.mesh.position.y + b.yOff, e.mesh.position.z);
+        }
+        function removeHpBar(e) {
+            const b = e.hpBar;
+            if (!b) return;
+            scene.remove(b.group);
+            b.fill.material.dispose(); // the only per-enemy GPU resource
+            e.hpBar = null;
         }
 
         function makeScaledEnemy(type, x, z) {
@@ -4252,8 +4300,8 @@
             enemy.speedMult = sc.spd;
             enemy.pointValue = Math.round((ENEMY_TYPES[type].points || 100) * sc.pts);
             if (type === 'juggernaut') enemy.armorFlat = 2.5 + state.level * 0.12; // v27.2: lighter plating (device report: too tanky at lv12)
-            attachHpBar(enemy); // v27.2: visible HP bar over every non-boss enemy
             enemy.mesh.position.set(x, 0, z);
+            attachHpBar(enemy); // v27.3: name + working HP bar over every non-boss enemy
             enemies.push(enemy);
             return enemy;
         }
@@ -4518,6 +4566,7 @@
 
                 // Terrain following for enemies that didn't move this frame (height/tilt upkeep)
                 if (!e._movedThisFrame) e.move(dt, _sv1.set(0, 0)); // FIX (Tier 3)
+                syncHpBar(e); // v27.3: keep the name/HP bar over the tank as it moves
             });
 
             // v5: remove enemies that died outside the bullet path (kamikaze detonations)
