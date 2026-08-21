@@ -1,0 +1,292 @@
+diff --git a/tank_realms_latest.html b/tank_realms_latest.html
+index 818e994..6e1e716 100644
+--- a/tank_realms_latest.html
++++ b/tank_realms_latest.html
+@@ -981,6 +981,7 @@
+         </div>
+         <div id="new-best-badge" class="hidden">★ NEW BEST! ★</div>
+         <button class="btn btn-restart" id="btn-restart">Try Again</button>
++        <button class="btn" id="btn-gameover-home" style="margin-top:4px;">🏠 Back to Home</button>
+         <button class="btn" id="btn-shop" style="background: linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%); box-shadow: 0 10px 40px rgba(14,165,233,0.4);">🛒 Armory &nbsp;·&nbsp; 💰 <span id="shop-coins-go">0</span></button>
+     </div>
+ 
+@@ -1316,7 +1317,9 @@
+             overchargeUntil: 0,          // v26 consumable
+             speedBoostUntil: 0,          // v5 Adrenaline
+             invulnUntil: 0,              // v4 Second Wind
+-            bossPending: false, bossActive: null, bossCount: 0 // v6(C) boss gate
++            bossPending: false, bossActive: null, bossCount: 0, // v6(C) boss gate
++            activeSaveName: null, // v27.6: set when a run is loaded from a named save (overwrite target)
++            supplyNextAt: 0, rapidFireUntil: 0 // v27.6: supply drops + rapid-fire reward
+         };
+ 
+         let audioCtx = null;
+@@ -1746,11 +1749,12 @@
+                     tone(172 + Math.random() * 36, 0.08, 'square', 0.028, 82);
+                     noise(0.05, 2600, 500, 0.025);
+                 },
+-                enemyShoot() { // v27.5 (owner): softer + throttled
++                enemyShoot() { // v27.6 (owner): only ~10% of enemy fire sounds survive — occasional cues, not a wall of pews
++                    if (Math.random() > 0.1) return;
+                     const t = clock.getElapsedTime();
+                     if (t - (this._les || 0) < 0.05) return;
+                     this._les = t;
+-                    tone(112 + Math.random() * 20, 0.08, 'square', 0.02, 58);
++                    tone(112 + Math.random() * 20, 0.08, 'square', 0.018, 58);
+                 },
+                 hit() { // v27.5 (owner): softer + throttled
+                     const t = clock.getElapsedTime();
+@@ -3897,26 +3901,40 @@
+                 wrap.appendChild(empty);
+             }
+         }
+-        function saveCurrentRun(name) { // v13: push a named record (no overwriting)
++        function saveCurrentRun(name) { // v13: push a named record — v27.6 (owner): saving the SAME name overwrites in place instead of stacking "(2) (3)" copies
+             const snap = snapshotRun();
+             if (!snap) return false;
+             snap.name = name;
+             snap.savedAt = Date.now();
+-            let final = name, i = 2;
+-            while ((state.casualSaves || []).some(s => s.name === final)) final = name + ' (' + (i++) + ')'; // never overwrite
+             state.casualSaves = state.casualSaves || [];
++            const idx = state.casualSaves.findIndex(s => s.name === name);
++            if (idx >= 0) { // overwrite that save
++                state.casualSaves[idx] = snap;
++                state.activeSaveName = name; // still the run's home save
++                try { saveGame(); } catch (e) {}
++                return name;
++            }
++            let final = name, i = 2;
++            while ((state.casualSaves || []).some(s => s.name === final)) final = name + ' (' + (i++) + ')'; // never overwrite a DIFFERENT run silently
+             state.casualSaves.push(final === name ? { ...snap, name } : { ...snap, name: final });
+             if (state.casualSaves.length > 12) state.casualSaves.shift();
+             try { saveGame(); } catch (e) {}
+             return final;
+         }
+-        function openSaveDialog() { // v13: name your save
++        function openSaveDialog() { // v13: name your save — v27.6: a loaded run asks to OVERWRITE its save
+             const snap = snapshotRun();
+             if (!snap) return;
+             document.getElementById('save-dialog-info').textContent =
+                 'Lv ' + snap.level + ' · ' + (snap.score || 0).toLocaleString() + ' pts · ' + fmtTime(snap.runTime);
+             const input = document.getElementById('save-name-input');
+-            input.value = 'Run Lv' + snap.level;
++            const title = document.querySelector('#save-dialog .settings-title');
++            if (state.activeSaveName) { // loaded from a save: prefill + overwrite framing
++                input.value = state.activeSaveName;
++                if (title) title.textContent = '💾 Overwrite “' + state.activeSaveName + '”?';
++            } else {
++                input.value = 'Run Lv' + snap.level;
++                if (title) title.textContent = '💾 Save run';
++            }
+             document.getElementById('save-dialog').classList.remove('hidden');
+             setTimeout(() => { input.focus(); input.select(); }, 50);
+         }
+@@ -4056,6 +4074,7 @@
+             bullets.forEach(b => scene.remove(b.group)); bullets = [];
+             missiles.forEach(m => scene.remove(m.group)); missiles = []; // v24
+             particles.forEach(p => { scene.remove(p.mesh); disposeObject3D(p.mesh); }); particles = [];
++            removeSupplyDrop(); // v27.6
+             document.querySelectorAll('.score-popup').forEach(p => p.remove());
+             setScreenVisibility('pause-screen', false);
+             setScreenVisibility('game-over-screen', false);
+@@ -4072,6 +4091,7 @@
+             // FIX (Tier 2): dispose GPU resources of everything from the previous run
+             // (bullets use shared cached resources, so removing them from the scene is enough)
+             if (player) { scene.remove(player.mesh); disposeObject3D(player.mesh); }
++            removeSupplyDrop(); // v27.6
+             enemies.forEach(e => { removeHpBar(e); scene.remove(e.mesh); disposeObject3D(e.mesh); });
+             bullets.forEach(b => scene.remove(b.group));
+             missiles.forEach(m => scene.remove(m.group)); // v26: in-flight missiles must not leak into the next run
+@@ -4133,6 +4153,8 @@
+             state.reviveAvailable = (meta.revive || 0) > 0;
+             // v26: surge scheduling on the pause-safe run clock
+             state.surgeActive = false;
++            state.supplyNextAt = state.runTime + 35; // v27.6: first supply drop ~35s in (lv4+)
++            state.rapidFireUntil = 0;
+             state.surgeNextAt = state.runTime + 50;
+             state.surgeEndsAt = 0; state.surgeLastSpawn = 0;
+             // v26: biome rotation cadence
+@@ -4166,6 +4188,7 @@
+                 player.hp = opts.resume.hp;
+                 player.mesh.position.set(opts.resume.x, 0, opts.resume.z);
+                 loadBiome(opts.resume.biome);
++                state.activeSaveName = opts.resume.name || null; // v27.6: named saves are overwritable homes for their run
+                 // v27.4 (fix): restore the boosts that were live when the run was saved
+                 state.runCoinBoost = opts.resume.coinBoost || 0;
+                 state.overchargeUntil = (opts.resume.overchargeLeft || 0) > 0 ? state.runTime + opts.resume.overchargeLeft : 0;
+@@ -4173,6 +4196,7 @@
+                 state.shieldReadyAt = opts.resume.shieldReadyAt || 0;
+                 if (state.shieldUp) player.shieldRing.visible = true;
+             } else {
++                state.activeSaveName = null; // v27.6: fresh run — saving creates a new slot
+                 loadBiome(Math.floor((state.level - 1) / 3)); // levels mode may start deeper
+             }
+             updateHUD();
+@@ -4351,6 +4375,93 @@
+             e.hpBar = null;
+         }
+ 
++        // ============================================
++        // v27.6 (owner request): SUPPLY DROPS — from lv4, every ~40-65s a glowing crate
++        // parachutes down near the player (gold square on the minimap, light beam
++        // in-world). Drive over it to crack it open for a random reward.
++        // ============================================
++        let _supplyGroup = null; // { group, crate, beam, chute, x, z, groundY, bornAt, landed }
++        const SUPPLY_REWARDS = [
++            { w: 20, id: 'repair', label: '🔧 +40% Repairs', apply() { player.hp = Math.min(player.maxHp, player.hp + Math.ceil(player.maxHp * 0.4)); } },
++            { w: 14, id: 'overcharge', label: '⚡ Overcharge 15s', apply() { state.overchargeUntil = Math.max(state.overchargeUntil || 0, state.runTime + 15); } },
++            { w: 14, id: 'shield', label: '🛡️ Shield charged', apply() { state.shieldUp = true; state.shieldReadyAt = 0; } },
++            { w: 20, id: 'coins', label: '💰 Coin cache', apply() { const c = 80 + state.level * 8; state.coins = (state.coins || 0) + c; state.runCoins = (state.runCoins || 0) + c; refreshCoinsHUD(); } },
++            { w: 11, id: 'card', label: '🃏 Bonus card', apply() { state.pendingChoices = (state.pendingChoices || 0) + 1; if (!state.isChoosingUpgrade) showUpgradeChoices(); } },
++            { w: 11, id: 'rapid', label: '🔥 Rapid fire 15s', apply() { state.rapidFireUntil = state.runTime + 15; } },
++            { w: 10, id: 'xp', label: '🌟 XP cache', apply() { addXP(Math.round(state.xpToNext * 0.4)); } }
++        ];
++        function spawnSupplyDrop() {
++            try {
++                const a = Math.random() * Math.PI * 2;
++                const d = 16 + Math.random() * 14;
++                const x = player.mesh.position.x + Math.cos(a) * d;
++                const z = player.mesh.position.z + Math.sin(a) * d;
++                const gy = getTerrainHeight(x, z);
++                const group = new THREE.Group();
++                const crate = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.6, 1.6),
++                    new THREE.MeshStandardMaterial({ color: 0xb45309, emissive: 0xffd479, emissiveIntensity: 0.55, roughness: 0.5, metalness: 0.3 }));
++                crate.castShadow = true;
++                group.add(crate);
++                const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 1.1, 34, 12, 1, true),
++                    new THREE.MeshBasicMaterial({ color: 0xffd479, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide }));
++                beam.position.y = 17;
++                group.add(beam);
++                const chute = new THREE.Mesh(new THREE.SphereGeometry(2.1, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
++                    new THREE.MeshStandardMaterial({ color: 0xf1f5f9, transparent: true, opacity: 0.85, side: THREE.DoubleSide, roughness: 0.9 }));
++                chute.position.y = 4.4;
++                group.add(chute);
++                group.position.set(x, gy + 42, z);
++                scene.add(group);
++                _supplyGroup = { group, crate, beam, chute, x, z, groundY: gy, bornAt: state.runTime, landed: false };
++                showUpgradeNotification('📦 Supply drop incoming!');
++                tutorialTip('supply', '📦 <b>SUPPLY DROP</b> — drive to the gold beam and roll over the crate!', 6000);
++            } catch (e) { _supplyGroup = null; }
++        }
++        function removeSupplyDrop() {
++            if (!_supplyGroup) return;
++            scene.remove(_supplyGroup.group);
++            disposeObject3D(_supplyGroup.group);
++            _supplyGroup = null;
++        }
++        function collectSupplyDrop() {
++            const total = SUPPLY_REWARDS.reduce((a, r) => a + r.w, 0);
++            let roll = Math.random() * total, reward = SUPPLY_REWARDS[0];
++            for (const r of SUPPLY_REWARDS) { roll -= r.w; if (roll <= 0) { reward = r; break; } }
++            try { reward.apply(); } catch (e) {}
++            showUpgradeNotification('📦 ' + reward.label);
++            SFX.achievement();
++            createExplosion(_supplyGroup.group.position.clone(), 14, 0xffd479, 'armor');
++            removeSupplyDrop();
++        }
++        function updateSupplyDrop(dt) { // pause-safe: scheduled on state.runTime like surges
++            if (state.level < 4) return;
++            if (state.supplyNextAt === undefined) state.supplyNextAt = (state.runTime || 0) + 35;
++            if (!_supplyGroup && state.runTime >= state.supplyNextAt) {
++                spawnSupplyDrop();
++                state.supplyNextAt = state.runTime + 40 + Math.random() * 25; // next in ~40-65s
++            }
++            const s = _supplyGroup;
++            if (!s) return;
++            const age = state.runTime - s.bornAt;
++            if (!s.landed) {
++                const y = s.groundY + Math.max(0, 42 - age * 11); // ~3.8s parachute descent
++                s.group.position.y = y;
++                s.crate.rotation.y += dt * 1.2;
++                if (y <= s.groundY + 0.9) {
++                    s.landed = true;
++                    s.group.position.y = s.groundY + 0.9;
++                    if (s.chute) { s.group.remove(s.chute); disposeObject3D(s.chute); s.chute = null; }
++                }
++            } else {
++                s.crate.rotation.y += dt * 0.8;
++                s.crate.position.y = Math.sin(state.runTime * 2.2) * 0.15; // gentle bob
++            }
++            if (s.beam) s.beam.material.opacity = 0.14 + 0.1 * (0.5 + 0.5 * Math.sin(state.runTime * 3));
++            const dx = player.mesh.position.x - s.x, dz = player.mesh.position.z - s.z;
++            if (s.landed && dx * dx + dz * dz < 3.2 * 3.2) { collectSupplyDrop(); return; }
++            if (age > 75) removeSupplyDrop(); // uncollected fades out
++        }
++
+         function makeScaledEnemy(type, x, z) {
+             const sc = enemyLevelScale();
+             const enemy = new Tank(ENEMY_TYPES[type].color, false, type);
+@@ -4460,7 +4571,7 @@
+             }
+ 
+             // Player shooting
+-            const fireRate = CONFIG.fireRate * (100 / state.playerStats.fireRate);
++            const fireRate = CONFIG.fireRate * (100 / state.playerStats.fireRate) * ((state.runTime || 0) < (state.rapidFireUntil || 0) ? 0.55 : 1); // v27.6: Rapid Fire drop
+             if (state.input.isFiring && clock.getElapsedTime() - state.lastFireTime > fireRate) {
+                 shoot(player);
+                 state.lastFireTime = clock.getElapsedTime();
+@@ -4939,6 +5050,8 @@
+                 spawnBoss();
+             }
+ 
++            updateSupplyDrop(dt); // v27.6: supply drop scheduling + descent + pickup
++
+             // Spawner (v10: mode-aware — v27: eased cadence and ceiling; 19-20 simultaneous
+             // enemies at lv15 was the main reason the run stalled there)
+             const floor = (state.mode === 'casual' && state.level > 20) ? 1.1 : 1.3;
+@@ -5067,6 +5180,14 @@
+             }
+ 
+             const [px, pz] = toMap(player.mesh.position.x, player.mesh.position.z); // player arrow
++            if (typeof _supplyGroup !== 'undefined' && _supplyGroup) { // v27.6: supply drop = gold square
++                const [gx2, gz2] = toMap(_supplyGroup.x, _supplyGroup.z);
++                ctx.fillStyle = '#ffd479';
++                ctx.fillRect(gx2 - 3.5, gz2 - 3.5, 7, 7);
++                ctx.strokeStyle = 'rgba(255, 212, 121, 0.5)';
++                ctx.lineWidth = 1;
++                ctx.strokeRect(gx2 - 5.5, gz2 - 5.5, 11, 11);
++            }
+             ctx.save();
+             ctx.translate(px, pz);
+             ctx.rotate(-player.mesh.rotation.y + Math.PI);
+@@ -5168,13 +5289,26 @@
+             const isBest = state.score > best;
+             if (isCasual) { if (isBest) state.bestCasual = state.score; state.autoSave = null; } // run over -> auto slot cleared, NAMED SAVES KEPT
+             else if (isBest) state.bestLevels = state.score;
++            // v27.6 (owner): dying in a run that was LOADED from a named save auto-updates
++            // that save so nothing is lost — you can retry it from the Casual hub at 50% HP.
++            if (isCasual && state.activeSaveName && (state.casualSaves || []).some(s => s.name === state.activeSaveName)) {
++                const snap = snapshotRun();
++                if (snap) {
++                    snap.name = state.activeSaveName;
++                    snap.savedAt = Date.now();
++                    snap.hp = Math.max(1, Math.ceil(player.maxHp * 0.5)); // respawn health
++                    state.casualSaves[state.casualSaves.findIndex(s => s.name === state.activeSaveName)] = snap;
++                    showUpgradeNotification('💾 Auto-saved to “' + state.activeSaveName + '”');
++                }
++            }
+             try { saveGame(); } catch (e) {}
+             best = state.score > best ? state.score : best;
+             document.getElementById('final-best').textContent = best;
+             document.getElementById('new-best-badge').classList.toggle('hidden', !isBest);
+             document.getElementById('game-over-screen').classList.remove('hidden');
+-            
++
+             state.input = { x: 0, y: 0, isFiring: false };
++            removeSupplyDrop(); // v27.6
+             document.getElementById('joystick-base').style.display = 'none';
+             syncHUDControls();
+         }
+@@ -5396,6 +5530,11 @@
+                 : {});
+         });
+ 
++        document.getElementById('btn-gameover-home').addEventListener('click', (e) => { // v27.6 (owner): Home from the death screen
++            e.stopPropagation();
++            quitToMenu();
++        });
++
+         document.getElementById('btn-pause').addEventListener('click', (e) => {
+             e.stopPropagation();
+             togglePause();

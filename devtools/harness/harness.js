@@ -85,7 +85,7 @@ const STUB_LINES = [
   '      get: function (t, prop) {',
   '        if (prop in t) return t[prop];',
   '        if (typeof prop !== "string") return undefined;',
-  '        var fn = function () { var a = [].slice.call(arguments).map(String); calls.push([prop].concat(a)); };',
+  '        var fn = function () { var a = [].slice.call(arguments).map(String); if (prop === "fillRect" || prop === "strokeRect" || prop === "fillText" || prop === "strokeText") a.push(String(base.fillStyle)); calls.push([prop].concat(a)); };',
   '        t[prop] = fn;',
   '        return fn;',
   '      },',
@@ -395,6 +395,46 @@ ev("(function(){ player.maxHp = 200; player.hp = 90; updateHUD(); return 'set'; 
 const pctTxt = ev("document.getElementById('hp-pct').textContent");
 check('v27.5: HP percentage shows next to the bar (45%)', pctTxt === '45%', 'got ' + pctTxt);
 quietBoard();
+
+// ---------------------------------------------------------------- 15. v27.6: supply drops, save overwrite, death autosave, home, enemy sfx
+quietBoard();
+ev("(function(){ removeSupplyDrop(); state.level = 5; state.supplyNextAt = state.runTime - 1; return 'armed'; })()");
+step(10); // spawn + early descent
+const sup1 = ev("(function(){ return _supplyGroup ? { alive: true, landed: _supplyGroup.landed, hasChute: !!_supplyGroup.chute } : { alive: false }; })()");
+check('v27.6: supply drop spawns (crate + beam + chute)', sup1.alive === true && sup1.landed === false && sup1.hasChute === true, JSON.stringify(sup1));
+step(280); // ~4.7s — parachute descent completes
+const sup2 = ev("(function(){ return _supplyGroup ? { alive: true, landed: _supplyGroup.landed, hasChute: !!_supplyGroup.chute, y: _supplyGroup.group.position.y, gy: _supplyGroup.groundY } : { alive: false }; })()");
+check('v27.6: crate parachutes down and lands (chute detaches)', sup2.alive === true && sup2.landed === true && sup2.hasChute === false && Math.abs(sup2.y - (sup2.gy + 0.9)) < 0.3, JSON.stringify(sup2));
+const gold = ev("(function(){ updateHUD(); var cv = document.getElementById('minimap'); var calls = (cv && cv.__2dCalls) || []; return calls.some(function (c) { return c[0] === 'fillRect' && String(c[c.length - 1]) === '#ffd479'; }); })()");
+check('v27.6: gold square drawn on the minimap', gold === true);
+const beforeReward = ev("(function(){ return { hp: player.hp, coins: state.coins || 0, pc: state.pendingChoices || 0, oc: (state.overchargeUntil || 0) - state.runTime, sh: !!state.shieldUp, rf: (state.rapidFireUntil || 0) - state.runTime, xp: state.xp }; })()");
+ev("(function(){ player.mesh.position.set(_supplyGroup.x, player.mesh.position.y, _supplyGroup.z); return 'on-crate'; })()");
+step(10); // roll over it
+const afterReward = ev("(function(){ return { hp: player.hp, coins: state.coins || 0, pc: state.pendingChoices || 0, oc: (state.overchargeUntil || 0) - state.runTime, sh: !!state.shieldUp, rf: (state.rapidFireUntil || 0) - state.runTime, xp: state.xp, gone: !_supplyGroup }; })()");
+const anyReward = afterReward.hp > beforeReward.hp || afterReward.coins > beforeReward.coins || afterReward.pc > beforeReward.pc || afterReward.oc > 0 || afterReward.sh || afterReward.rf > 0 || afterReward.xp > beforeReward.xp;
+check('v27.6: driving over the crate collects a reward + cleans up', afterReward.gone === true && anyReward === true, JSON.stringify({ before: beforeReward, after: afterReward }));
+closeCards(); // a bonus-card reward may have opened the picker
+
+// save overwrite semantics
+const saveT = ev("(function(){ state.casualSaves = []; saveCurrentRun('MyRun'); saveCurrentRun('MyRun'); saveCurrentRun('MyRun'); var n1 = state.casualSaves.length; saveCurrentRun('Second'); return { same: n1, total: state.casualSaves.length, names: state.casualSaves.map(function (s) { return s.name; }) }; })()");
+check('v27.6: re-saving the same name overwrites (no more (2)(3) stacks)', saveT.same === 1 && saveT.total === 2 && saveT.names.join(',') === 'MyRun,Second', JSON.stringify(saveT));
+
+// enemy fire sound ~10% (statistical, 0.1s gaps > throttle)
+const esfx = ev("(function(){ var plays = 0; for (var i = 0; i < 60; i++) { window.__vt += 100; var before = SFX._les; SFX.enemyShoot(); if (SFX._les !== before) plays++; } return plays; })()");
+check('v27.6: enemy fire sound plays ~10% of shots (2-14 of 60)', esfx >= 2 && esfx <= 14, 'plays=' + esfx);
+
+// death -> auto-save to the loaded save + Home button
+ev("(function(){ state.casualSaves = []; var snap = snapshotRun(); snap.name = 'DeathTest'; snap.savedAt = Date.now(); state.casualSaves.push(snap); startGame('casual', { resume: snap }); return 'resumed'; })()");
+step(30);
+ev("(function(){ player.maxHp = 300; player.hp = 1; player.takeDamage(999); if (player.hp <= 0) endGame(); return 'dead'; })()");
+step(30);
+const deathSave = ev("(function(){ var s = (state.casualSaves || []).filter(function (x) { return x.name === 'DeathTest'; })[0]; return { found: !!s, hp: s ? s.hp : -1, phase: state.gamePhase, homeBtn: !!document.getElementById('btn-gameover-home') }; })()");
+check('v27.6: dying in a loaded run auto-saves it (retry at 50% HP)', deathSave.found === true && deathSave.hp === 150 && deathSave.phase === 'gameover', JSON.stringify(deathSave));
+win.document.getElementById('btn-gameover-home').dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
+step(10);
+const homeOk = ev("(function(){ return { phase: state.gamePhase, homeVisible: !document.getElementById('start-screen').classList.contains('hidden') }; })()");
+check('v27.6: Home button on the death screen returns to the menu', homeOk.phase === 'menu' && homeOk.homeVisible === true, JSON.stringify(homeOk));
+check('v27.6: all v27.6 sections ran clean', cleanSoFar(), errDetail());
 
 // ---------------------------------------------------------------- report
 console.log(NL + '================ RESULTS ================');
