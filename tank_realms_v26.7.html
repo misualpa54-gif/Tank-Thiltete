@@ -405,6 +405,7 @@
             position: fixed;
             inset: 0;
             z-index: 400;
+            pointer-events: auto;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -419,6 +420,9 @@
         .uc-subtitle { color: rgba(255,255,255,0.65); font-size: 14px; letter-spacing: 2px; margin-top: -8px; }
         .uc-cards { display: flex; gap: 14px; padding: 0 16px; flex-wrap: wrap; justify-content: center; }
         .uc-card {
+            pointer-events: auto;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: rgba(255,255,255,0.15);
             width: 150px;
             min-height: 170px;
             border-radius: 20px;
@@ -628,8 +632,8 @@
         .pause-btn {
             position: fixed;
             top: max(14px, env(safe-area-inset-top));
-            right: 14px;
-            z-index: 30;
+            right: max(14px, env(safe-area-inset-right));
+            z-index: 90;
             pointer-events: auto;
             border: none;
             width: 48px;
@@ -888,7 +892,7 @@
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">v26.6</div>
+        <div class="version-tag" id="version-tag">v26.7</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -1228,6 +1232,7 @@
             skirmisher: { name: "Skirmisher", color: 0x2dd4bf, hp: 60,  speed: 1.55, damage: 18, fireRate: 0.65, size: 0.75, points: 260, desc: "Keeps its distance — retreats when you push" },
             wasp:       { name: "Wasp",       color: 0xfacc15, hp: 30,  speed: 2.2,  damage: 8,  fireRate: 0.9,  size: 0.55, points: 95,  desc: "Fast weaving swarm — hard to hit" },
             juggernaut: { name: "Juggernaut", color: 0x334155, hp: 400, speed: 0.38, damage: 30, fireRate: 0.22, size: 2.0,  points: 700, desc: "Armored wall — it will not stop coming" },
+            raider:     { name: "Raider",     color: 0xfb7185, hp: 75,  speed: 1.75, damage: 15, fireRate: 0.55, size: 0.85, points: 210, desc: "Dashes in, dumps a clip, dashes out" },
             // v6(C): bosses
             warlord:  { name: "WARLORD",  color: 0xb91c1c, hp: 600, speed: 0.45, damage: 20, fireRate: 0.3, size: 2.6, points: 1500, desc: "BOSS — five-shell barrages" },
             colossus: { name: "COLOSSUS", color: 0x6d28d9, hp: 750, speed: 0.35, damage: 15, fireRate: 0.3, size: 3.0, points: 1800, desc: "BOSS — bursts and reinforcements" },
@@ -1716,8 +1721,8 @@
 
             return {
                 // -- one-shots --
-                shoot() { tone(190, 0.09, 'square', 0.05, 90); noise(0.06, 2600, 500, 0.05); },
-                enemyShoot() { tone(120, 0.11, 'square', 0.03, 60); },
+                shoot() { tone(190, 0.07, 'square', 0.028, 90); },
+                enemyShoot() { tone(120, 0.08, 'square', 0.018, 60); },
                 hit() { tone(340, 0.05, 'triangle', 0.05, 240); },
                 crit() { tone(660, 0.07, 'sine', 0.06); setTimeout(() => tone(990, 0.08, 'sine', 0.05), 45); },
                 kill() { tone(523, 0.07, 'sine', 0.045); setTimeout(() => tone(784, 0.09, 'sine', 0.04), 60); },
@@ -3062,7 +3067,7 @@
                     try { updateBossBar(); } catch (err) {}
                 }
                 if (this.isPlayer) SFX.engineStop(); // v23
-                createExplosion(this.mesh.position, this.isPlayer ? 28 : 8);
+                createExplosion(this.mesh.position, this.isPlayer ? 10 : 4, 0xff6600, 'spark');
                 scene.remove(this.mesh);
                 disposeObject3D(this.mesh); // FIX (Tier 2): free ~20 geometries + materials per tank
             }
@@ -3176,8 +3181,12 @@
         // v10: difficulty — v26.2: fire rate ramps with the run level (capped at +50%)
         const enemyFireRoll = (base, dt) => Math.random() < base * dt * 60 * (state.diffMult.fire || 1)
             * (1 + Math.min(0.5, Math.max(0, (state.level || 1) - 1) * 0.015));
+        let _sfxShootAt = 0, _sfxEnemyAt = 0;
         function shoot(source) {
-            if (source.isPlayer) SFX.shoot(); else SFX.enemyShoot(); // v23
+            const nowS = performance.now();
+            if (source.isPlayer) {
+                if (nowS - _sfxShootAt > 95) { _sfxShootAt = nowS; SFX.shoot(); }
+            } else if (nowS - _sfxEnemyAt > 160) { _sfxEnemyAt = nowS; SFX.enemyShoot(); }
             // Recoil animation with smooth return
             const originalZ = source.barrel.position.z;
             source.barrel.position.z -= 0.5;
@@ -3306,7 +3315,7 @@
             // instead of a new (never-disposed) geometry per particle.
             // Uniform/scaling math produces identical shapes to the originals.
             // v26.6: cap debris so deaths don't fog the screen
-            const debrisN = Math.min(count, isArmor ? 14 : 10);
+            const debrisN = Math.min(count, type === 'spark' ? 3 : (isArmor ? 5 : 6));
             for (let i = 0; i < debrisN; i++) {
                 const size = (0.2 + Math.random() * 0.5) * (isArmor ? 0.8 : 1);
                 let geo, mat, sx = size, sy = size, sz = size;
@@ -3385,7 +3394,7 @@
             }
 
             // Smoke/Dust
-            const smokeCount = isArmor ? 3 : (isGround ? 2 : 2);
+            const smokeCount = (type === 'spark' || isArmor) ? 0 : (isGround ? 1 : 1);
             for (let i = 0; i < smokeCount; i++) {
                 const smokeRadius = 0.8 + Math.random() * 0.6; // FIX (Tier 2): shared unit sphere + scale
                 let smokeColor = 0x6a6a6a;
@@ -3514,6 +3523,8 @@
         function setPauseUIVisible(visible) {
             const btnPause = document.getElementById('btn-pause');
             if (btnPause) btnPause.classList.toggle('show', visible);
+            const qb = document.getElementById('hud-quickbar');
+            if (qb) qb.classList.toggle('show', visible);
         }
 
         function setScreenVisibility(screenId, visible) {
@@ -3587,7 +3598,10 @@
             if (level >= 5) types.push('skirmisher');
             if (level >= 6) types.push('skirmisher');
             if (level >= 12) { types.push('wasp'); types.push('wasp'); }
+            if (level >= 14) types.push('raider');
+            if (level >= 16) types.push('raider');
             if (level >= 16) types.push('juggernaut');
+            if (level >= 18) types.push('raider');
             return types[Math.floor(Math.random() * types.length)];
         }
 
@@ -3633,7 +3647,7 @@
             if (enemy.mesh) try { showScorePopup(enemy.mesh.position.x, enemy.mesh.position.z, points); } catch (err) {}
             if (enemy.isBoss) {
                 try {
-                    if (enemy.mesh) createExplosion(enemy.mesh.position.clone(), 28, 0xffaa00, 'armor', enemy.type);
+                    if (enemy.mesh) createExplosion(enemy.mesh.position.clone(), 8, 0xffaa00, 'spark');
                     state.cameraShake = 0.8;
                     showBossBanner('🏆 ' + (ENEMY_TYPES[enemy.type]?.name || 'BOSS') + ' DEFEATED!');
                     SFX.bossDown(); SFX.vibrate([60, 40, 60, 40, 120]);
@@ -4323,6 +4337,21 @@
             enemy.speedMult = sc.spd;
             enemy.pointValue = Math.round((ENEMY_TYPES[type].points || 100) * sc.pts);
             if (type === 'juggernaut') enemy.armorFlat = 3 + state.level * 0.12; // v26.4: less plating in the teens
+            // v26.7: elites from lv15 — a gold-tinted tougher twin, extra coins, still fair
+            if (state.level >= 15 && type !== 'juggernaut' && Math.random() < 0.14) {
+                enemy.isElite = true;
+                enemy.hp = enemy.maxHp = Math.round(enemy.maxHp * 1.4);
+                enemy.damageMult = (enemy.damageMult || 1) * 1.15;
+                enemy.pointValue = Math.round((enemy.pointValue || 100) * 1.7);
+                enemy._hpName = 'Elite ' + ((ENEMY_TYPES[type] && ENEMY_TYPES[type].name) || type);
+                enemy.mesh.traverse(c => {
+                    if (c.isMesh && c.material && c.material.color) {
+                        c.material.color.offsetHSL(0.08, 0.25, 0.08);
+                        if (c.material.emissive) c.material.emissive.setHex(0x664400);
+                    }
+                });
+                if (enemy.updateHpBar) enemy.updateHpBar();
+            }
             enemy.mesh.position.set(x, 0, z);
             enemies.push(enemy);
             return enemy;
@@ -4548,11 +4577,26 @@
                     step(_sv1.set(toPlayer.x, toPlayer.z).normalize());
                     e.aimAt(player.mesh.position, dt);
                     if (dist < 40 && enemyFireRoll(0.012 * (ENEMY_TYPES.juggernaut.fireRate || 0.3), dt)) shoot(e);
+                } else if (e.type === 'raider') { // v26.7: dash in, dump shots, peel off
+                    if (e.raidPhase === undefined) e.raidPhase = 0;
+                    if (e.raidPhase === 0) {
+                        step(_sv1.set(toPlayer.x, toPlayer.z).normalize());
+                        if (dist < 16) e.raidPhase = 1;
+                    } else if (e.raidPhase === 1) {
+                        const st = Math.sin(clock.getElapsedTime() * 4);
+                        step(_sv1.set(-toPlayer.z, toPlayer.x).normalize().multiplyScalar(st));
+                        if (dist < 22 && enemyFireRoll(0.028, dt)) shoot(e);
+                        if (dist < 10) e.raidPhase = 2;
+                    } else {
+                        step(_sv1.set(-toPlayer.x, -toPlayer.z).normalize());
+                        if (dist > 28) e.raidPhase = 0;
+                    }
+                    e.aimAt(player.mesh.position, dt);
                 } else if (e.type === 'bomber') { // v5: kamikaze — sprint and detonate
                     step(_sv1.set(toPlayer.x, toPlayer.z).normalize());
                     e.aimAt(player.mesh.position, dt);
                     if (dist < 4.5) {
-                        createExplosion(e.mesh.position.clone(), 45, 0xff4500, 'armor', 'bomber');
+                        createExplosion(e.mesh.position.clone(), 6, 0xff4500, 'spark');
                         player.takeDamage(ENEMY_TYPES.bomber.damage * (state.diffMult.dmg || 1) * (e.damageMult || 1)); // v10: difficulty + v26
                         showDamageDirection(e.mesh.position.x, e.mesh.position.z);
                         e.die();
@@ -4678,7 +4722,7 @@
                                     
                                     const enemyColor = ENEMY_TYPES[enemy.type]?.color || 0xff0000;
                                     // Pass enemy type for specific visual effects
-                                    createExplosion(b.group.position, isCrit ? 26 : 18, enemyColor, 'armor', enemy.type);
+                                    createExplosion(b.group.position, isCrit ? 4 : 2, enemyColor, 'spark');
                                     
                                     if (enemy.isDead) {
                                         handleEnemyKill(enemy, isCrit, 'shell');
@@ -4703,7 +4747,7 @@
                         if (dx*dx + dz*dz < 2.5*2.5 && dy < 3.8) {
                             showDamageDirection(b.group.position.x, b.group.position.z); // v2 UI
                             player.takeDamage(b.group.userData.damage);
-                            createExplosion(b.group.position, 14, selectedSkinColor(), 'armor'); // v10: skin color
+                            createExplosion(b.group.position, 3, selectedSkinColor(), 'spark');
                             
                             dom('damage-overlay').style.opacity = '0.5'; // FIX (Tier 4)
                             setTimeout(() => dom('damage-overlay').style.opacity = '0', 150);
@@ -4896,6 +4940,38 @@
                 }
             }
 
+            // v26.7: late-run spice — short events so 15+ is not the same fight forever
+            if (state.level >= 15 && !state.surgeActive && !state.isChoosingUpgrade) {
+                if (state.funUntil && state.runTime >= state.funUntil) {
+                    if (state.funKind === 'bounty') state.runCoinBoost = Math.max(0, (state.runCoinBoost || 0) - 0.5);
+                    state.funKind = null; state.funUntil = 0;
+                    state.nextFunAt = state.runTime + 40 + Math.random() * 25;
+                }
+                if (!state.funKind && state.runTime >= (state.nextFunAt || 80)) {
+                    const kinds = ['bounty', 'lull', 'raid'];
+                    state.funKind = kinds[Math.floor(Math.random() * kinds.length)];
+                    state.funUntil = state.runTime + (state.funKind === 'lull' ? 12 : 16);
+                    state.nextFunAt = state.funUntil + 40 + Math.random() * 25;
+                    if (state.funKind === 'bounty') {
+                        state.runCoinBoost = (state.runCoinBoost || 0) + 0.5;
+                        showBossBanner('💰 BOUNTY — extra coins for 16s');
+                    } else if (state.funKind === 'lull') {
+                        showBossBanner('🌤 BREATHER — fewer spawns');
+                    } else {
+                        showBossBanner('🏍 RAIDERS INBOUND');
+                        for (let i = 0; i < 2; i++) {
+                            const a = Math.random() * Math.PI * 2, d = 36 + Math.random() * 10;
+                            makeScaledEnemy('raider', player.mesh.position.x + Math.cos(a) * d, player.mesh.position.z + Math.sin(a) * d);
+                        }
+                    }
+                }
+                if (state.funKind === 'lull') {
+                    // skip extra pressure: bump last spawn so cadence idles
+                    if (clock.getElapsedTime() - state.lastSpawnTime < 2.2) state.lastSpawnTime = clock.getElapsedTime() - 0.4;
+                }
+
+            }
+
             // v17: DYNAMIC CAMERA — adaptive framing.
             // Close combat -> pull in tight; roaming empty space or a boss fight ->
             // pull back for awareness; speed widens slightly. Slow adaptation (no bounce).
@@ -5042,19 +5118,16 @@
             if (player) {
                 const hpPct = Math.max(0, (player.hp / player.maxHp) * 100);
                 const bar = dom('hp-bar');
-                bar.style.width = hpPct + '%';
-                dom('hp-text').textContent = Math.max(0, Math.round(player.hp)); // v2 UI
-                
-                if (hpPct < 30) bar.style.background = 'linear-gradient(90deg, #dc2626, #ef4444)';
-                else if (hpPct < 60) bar.style.background = 'linear-gradient(90deg, #eab308, #facc15)';
-                else bar.style.background = 'linear-gradient(90deg, #22c55e, #4ade80)';
-
-                const panel = document.getElementById('hp-panel'); // v2 UI: low-HP pulse
+                if (bar) {
+                    bar.style.width = hpPct + '%';
+                    if (hpPct < 30) bar.style.background = 'linear-gradient(90deg, #dc2626, #ef4444)';
+                    else if (hpPct < 60) bar.style.background = 'linear-gradient(90deg, #eab308, #facc15)';
+                    else bar.style.background = 'linear-gradient(90deg, #22c55e, #4ade80)';
+                }
+                const panel = document.getElementById('hp-panel');
                 if (panel) panel.classList.toggle('low-hp', hpPct < 25 && hpPct > 0);
                 const chip = document.querySelector('.level-chip');
                 if (chip) chip.classList.toggle('low-hp', hpPct < 25 && hpPct > 0);
-                const hpNum = document.getElementById('hp-text');
-                if (hpNum) hpNum.style.display = 'none';
             }
         }
 
@@ -5523,7 +5596,9 @@ function showUpgradeChoices(){
         card.innerHTML = '<div class="uc-icon">' + up.icon + '</div>' +
                           '<div class="uc-name">' + up.text + '</div>' +
                           '<div class="uc-desc">' + up.desc + '</div>';
-        card.onclick = () => pickUpgradeCard(card, up, overlay, cards);
+        const pick = (ev) => { if (ev) { ev.preventDefault(); ev.stopPropagation(); } pickUpgradeCard(card, up, overlay, cards); };
+        card.addEventListener('pointerup', pick);
+        card.addEventListener('click', pick);
         cards.appendChild(card);
     });
     // v26: Card Reroll consumable — spend one to draw a fresh hand
@@ -5550,24 +5625,28 @@ function showUpgradeChoices(){
 }
 
 function pickUpgradeCard(card, up, overlay, cards){
-    SFX.cardPick(); // v23
-    applyUpgrade(up);
-    card.classList.add('picked');
-    [...cards.children].forEach(c => { if (c !== card) c.classList.add('dismissed'); });
-    setTimeout(() => {
-        overlay.remove();
-        if ((state.pendingChoices || 0) > 0) { // queued multi-level-ups: choose again
+    if (overlay && overlay.dataset && overlay.dataset.picked) return;
+    if (overlay && overlay.dataset) overlay.dataset.picked = '1';
+    try { SFX.cardPick(); } catch (err) {}
+    try { applyUpgrade(up); } catch (err) { try { console.error(err); } catch (e) {} }
+    try { card.classList.add('picked'); [...cards.children].forEach(c => { if (c !== card) c.classList.add('dismissed'); }); } catch (err) {}
+    const finish = () => {
+        try { if (overlay && overlay.parentNode) overlay.remove(); } catch (err) {}
+        if ((state.pendingChoices || 0) > 0) {
             state.pendingChoices--;
             showUpgradeChoices();
         } else {
             state.isChoosingUpgrade = false;
-            const now = clock.getElapsedTime(); // clock ran while frozen — re-arm gates
-            state.lastFireTime = now;
-            state.lastSpawnTime = now;
-            state.lastRegenTime = now;
-            maybeTransitionBiome(); // v15: realm reveal after the last card
+            try {
+                const now = clock.getElapsedTime();
+                state.lastFireTime = now;
+                state.lastSpawnTime = now;
+                state.lastRegenTime = now;
+                maybeTransitionBiome();
+            } catch (err) {}
         }
-    }, 400);
+    };
+    setTimeout(finish, 280);
 }
 
 function applyUpgrade(up){
