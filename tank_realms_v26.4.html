@@ -402,7 +402,7 @@
         #upgrade-choice {
             position: fixed;
             inset: 0;
-            z-index: 200;
+            z-index: 400;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -892,7 +892,7 @@
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">v26.3</div>
+        <div class="version-tag" id="version-tag">v26.4</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -1231,7 +1231,7 @@
             // v26: late-game pressure trio
             skirmisher: { name: "Skirmisher", color: 0x2dd4bf, hp: 60,  speed: 1.55, damage: 18, fireRate: 0.65, size: 0.75, points: 260, desc: "Keeps its distance — retreats when you push" },
             wasp:       { name: "Wasp",       color: 0xfacc15, hp: 30,  speed: 2.2,  damage: 8,  fireRate: 0.9,  size: 0.55, points: 95,  desc: "Fast weaving swarm — hard to hit" },
-            juggernaut: { name: "Juggernaut", color: 0x334155, hp: 520, speed: 0.38, damage: 38, fireRate: 0.25, size: 2.0,  points: 700, desc: "Armored wall — it will not stop coming" },
+            juggernaut: { name: "Juggernaut", color: 0x334155, hp: 400, speed: 0.38, damage: 30, fireRate: 0.22, size: 2.0,  points: 700, desc: "Armored wall — it will not stop coming" },
             // v6(C): bosses
             warlord:  { name: "WARLORD",  color: 0xb91c1c, hp: 600, speed: 0.45, damage: 20, fireRate: 0.3, size: 2.6, points: 1500, desc: "BOSS — five-shell barrages" },
             colossus: { name: "COLOSSUS", color: 0x6d28d9, hp: 750, speed: 0.35, damage: 15, fireRate: 0.3, size: 3.0, points: 1800, desc: "BOSS — bursts and reinforcements" },
@@ -2839,6 +2839,32 @@
                 }
 
                 scene.add(this.mesh);
+
+                // v26.4: world HP bars for regular enemies (bosses keep the top HUD bar)
+                this.hpBar = null;
+                this.hpBarFill = null;
+                const bossTypes = { warlord:1, colossus:1, nova:1, titan:1, tempest:1, fortress:1 };
+                if (!isPlayer && !bossTypes[type]) {
+                    const barW = 2.2 * Math.max(0.85, scale);
+                    const bg = new THREE.Mesh(
+                        new THREE.PlaneGeometry(barW, 0.22),
+                        new THREE.MeshBasicMaterial({ color: 0x111111, depthTest: false, transparent: true, opacity: 0.8 })
+                    );
+                    const fill = new THREE.Mesh(
+                        new THREE.PlaneGeometry(barW * 0.94, 0.14),
+                        new THREE.MeshBasicMaterial({ color: 0x22c55e, depthTest: false, depthWrite: false })
+                    );
+                    fill.position.z = 0.02;
+                    this.hpBar = new THREE.Group();
+                    this.hpBar.add(bg);
+                    this.hpBar.add(fill);
+                    this.hpBarFill = fill;
+                    this.hpBar._barW = barW * 0.94;
+                    this._hpBarLift = 2.6 * scale + 0.7;
+                    this.hpBar.renderOrder = 9;
+                    scene.add(this.hpBar);
+                    this.updateHpBar();
+                }
             }
 
             move(dt, inputVec) {
@@ -2954,6 +2980,8 @@
                     - (this.isPlayer ? 0 : (this.armorFlat || 0))); // v26: Juggernaut plating
                 if (this.isPlayer) { SFX.hurt(); SFX.vibrate(35); } // v23
                 this.hp -= actualDamage;
+                this.updateHpBar();
+                if (this.isBoss) try { updateBossBar(); } catch (err) {}
 
                 this.mesh.traverse(c => {
                     if (c.isMesh && c.material.emissive) {
@@ -2981,12 +3009,32 @@
 
             heal(amount) {
                 this.hp = Math.min(this.maxHp, this.hp + amount);
+                this.updateHpBar();
                 createHealEffect(this.mesh.position);
                 SFX.heal(); // v23
             }
 
+            updateHpBar() {
+                if (!this.hpBarFill) return;
+                const frac = Math.max(0, Math.min(1, this.hp / (this.maxHp || 1)));
+                this.hpBarFill.scale.x = Math.max(0.03, frac);
+                this.hpBarFill.position.x = (frac - 1) * (this.hpBar._barW || 2) * 0.5;
+                this.hpBarFill.material.color.setHex(frac < 0.3 ? 0xef4444 : frac < 0.6 ? 0xfacc15 : 0x22c55e);
+            }
+
             die() {
                 this.isDead = true;
+                if (this.hpBar) {
+                    scene.remove(this.hpBar);
+                    disposeObject3D(this.hpBar);
+                    this.hpBar = null;
+                    this.hpBarFill = null;
+                }
+                if (this.isBoss && state.bossActive === this) {
+                    state.bossActive = null;
+                    state.bossCooldownUntil = (state.runTime || 0) + 12;
+                    try { updateBossBar(); } catch (err) {}
+                }
                 if (this.isPlayer) SFX.engineStop(); // v23
                 createExplosion(this.mesh.position, this.isPlayer ? 70 : 35);
                 scene.remove(this.mesh);
@@ -3093,13 +3141,7 @@
                     const isCrit = Math.random() * 100 < (state.playerStats.crit || 0);
                     e.takeDamage(dmg * (d < 3 ? 1 : 0.5) * (isCrit ? 2 : 1));
                     if (e.isDead) {
-                        const points = e.pointValue || ENEMY_TYPES[e.type]?.points || 100; // v26
-                        state.score += points; state.kills++;
-                        trackKill(!!e.isBoss, isCrit, Math.floor(points * 0.5));
-                        addKillReward(e);
-                        addKillFeed(points, (ENEMY_TYPES[e.type]?.name || 'Tank') + ' 🚀', state.combo);
-                        addXP(points / 2);
-                        showScorePopup(e.mesh.position.x, e.mesh.position.z, points);
+                        handleEnemyKill(e, isCrit, 'missile');
                         enemies.splice(j, 1);
                     }
                 }
@@ -3497,8 +3539,8 @@
         function enemyLevelScale() {
             const L = state.level || 1;
             return {
-                hp:  1 + Math.max(0, L - 1) * 0.06  + Math.max(0, L - 10) * 0.035 + Math.max(0, L - 20) * 0.05,
-                dmg: 1 + Math.max(0, L - 1) * 0.028 + Math.max(0, L - 12) * 0.03  + Math.max(0, L - 22) * 0.035,
+                hp:  1 + Math.max(0, L - 1) * 0.05  + Math.max(0, L - 10) * 0.03  + Math.max(0, L - 20) * 0.05,
+                dmg: 1 + Math.max(0, L - 1) * 0.022 + Math.max(0, L - 12) * 0.028 + Math.max(0, L - 22) * 0.035,
                 spd: 1 + Math.min(0.35, Math.max(0, L - 1) * 0.01),
                 pts: 1 + Math.max(0, L - 1) * 0.05  + Math.max(0, L - 12) * 0.03
             };
@@ -3513,11 +3555,11 @@
             if (level >= 6) types.push('bomber');   // v5
             if (level >= 8) types.push('phantom');  // v5
             if (level >= 10) types.push('gunner');  // v5
-            // v26.2: extra pushes — wasp twice at lv12, juggernaut once from lv12
+            // v26.4: wasps from lv12; juggernaut delayed to lv16 (too tanky at 12)
             if (level >= 5) types.push('skirmisher');
             if (level >= 6) types.push('skirmisher');
             if (level >= 12) { types.push('wasp'); types.push('wasp'); }
-            if (level >= 12) types.push('juggernaut');
+            if (level >= 16) types.push('juggernaut');
             return types[Math.floor(Math.random() * types.length)];
         }
 
@@ -3540,6 +3582,40 @@
             el.classList.remove('anim'); void el.offsetWidth; el.classList.add('anim');
             clearTimeout(el._t);
             el._t = setTimeout(() => { el.style.opacity = '0'; }, 2400);
+        }
+
+        function handleEnemyKill(enemy, isCrit, via) {
+            // v26.4: one kill path so Field Medic / boss-bar / XP always fire
+            if (!enemy || enemy._killHandled) return;
+            enemy._killHandled = true;
+            const points = enemy.pointValue || ENEMY_TYPES[enemy.type]?.points || 100;
+            state.score += points;
+            state.kills++;
+            try { SFX.kill(); } catch (err) {}
+            if ((state.playerStats.healOnKill || 0) > 0 && player && !player.isDead) {
+                player.hp = Math.min(player.maxHp, player.hp + state.playerStats.healOnKill);
+                try { createHealEffect(player.mesh.position); } catch (err) {}
+            }
+            if (state.playerStats.adrenaline) state.speedBoostUntil = clock.getElapsedTime() + 1.5;
+            try { trackKill(!!enemy.isBoss, !!isCrit, Math.floor(points * 0.5)); } catch (err) {}
+            try { addKillReward(enemy); } catch (err) {}
+            const tag = via === 'missile' ? ' 🚀' : (isCrit ? ' ⚡CRIT' : '');
+            try { addKillFeed(points, (ENEMY_TYPES[enemy.type]?.name || 'Tank') + tag, state.combo); } catch (err) {}
+            try { addXP(points / 2); } catch (err) {}
+            if (enemy.mesh) try { showScorePopup(enemy.mesh.position.x, enemy.mesh.position.z, points); } catch (err) {}
+            if (enemy.isBoss) {
+                try {
+                    if (enemy.mesh) createExplosion(enemy.mesh.position.clone(), 120, 0xffaa00, 'armor', enemy.type);
+                    state.cameraShake = 0.8;
+                    showBossBanner('🏆 ' + (ENEMY_TYPES[enemy.type]?.name || 'BOSS') + ' DEFEATED!');
+                    SFX.bossDown(); SFX.vibrate([60, 40, 60, 40, 120]);
+                    if (player && !player.isDead) player.hp = Math.min(player.maxHp, player.hp + Math.ceil(player.maxHp * 0.25));
+                } catch (err) {}
+                state.bossActive = null;
+                state.bossCooldownUntil = (state.runTime || 0) + 12;
+                try { updateBossBar(); } catch (err) {}
+            }
+            try { updateHUD(); } catch (err) {}
         }
 
         function updateBossBar() {
@@ -4063,6 +4139,7 @@
             state.bossActive = null; // v6(C)
             state.bossPending = false;
             state.bossCount = state.bossCount || 0;
+            state.bossCooldownUntil = 0;
             updateBossBar();
             SFX.engineStart(); // v23+v24: audio lifecycle starts AFTER cleanup
             SFX.ambientSet(BIOMES[(opts && opts.resume && opts.resume.biome) || 0]);
@@ -4187,10 +4264,11 @@
                 hpMult *= 1 + (state.level - 20) * 0.04;
             }
             enemy.hp = enemy.maxHp = Math.round(enemy.maxHp * hpMult);
+            if (enemy.updateHpBar) enemy.updateHpBar();
             enemy.damageMult = sc.dmg;
             enemy.speedMult = sc.spd;
             enemy.pointValue = Math.round((ENEMY_TYPES[type].points || 100) * sc.pts);
-            if (type === 'juggernaut') enemy.armorFlat = 4 + state.level * 0.18; // v26.2: flat plating
+            if (type === 'juggernaut') enemy.armorFlat = 3 + state.level * 0.12; // v26.4: less plating in the teens
             enemy.mesh.position.set(x, 0, z);
             enemies.push(enemy);
             return enemy;
@@ -4226,8 +4304,11 @@
             if (state.playerStats.regen > 0 && clock.getElapsedTime() - state.lastRegenTime > 1) {
                 if (player.hp < player.maxHp) {
                     player.hp = Math.min(player.maxHp, player.hp + state.playerStats.regen);
-                    dom('heal-overlay').style.opacity = '0.3'; // FIX (Tier 4)
-                    setTimeout(() => dom('heal-overlay').style.opacity = '0', 200);
+                    const overlay = dom('heal-overlay');
+                    if (overlay) {
+                        overlay.style.opacity = '0.3';
+                        setTimeout(() => { if (overlay) overlay.style.opacity = '0'; }, 200);
+                    }
                     updateHUD();
                 }
                 state.lastRegenTime = clock.getElapsedTime();
@@ -4452,6 +4533,11 @@
                     if (enemyFireRoll(0.012 * (ENEMY_TYPES[e.type]?.fireRate || 0.4), dt)) shoot(e); // v10
                 }
                 if (!moved) e.move(dt, _sv1.set(0, 0)); // idle: terrain follow only
+                if (e.hpBar && camera && !e.isDead) {
+                    e.hpBar.position.copy(e.mesh.position);
+                    e.hpBar.position.y += e._hpBarLift || 3;
+                    e.hpBar.quaternion.copy(camera.quaternion);
+                }
             });
 
             // v5: remove enemies that died outside the bullet path (kamikaze detonations)
@@ -4529,11 +4615,7 @@
                                             if (other.mesh.position.distanceTo(b.group.position) < radius) {
                                                 other.takeDamage(b.group.userData.damage * 0.5);
                                                 if (other.isDead) {
-                                                    const pts2 = other.pointValue || ENEMY_TYPES[other.type]?.points || 100; // v26
-                                                    state.score += pts2; state.kills++;
-                                                    trackKill(!!other.isBoss, false, Math.floor(pts2 * 0.5));
-                                                    addKillReward(other);
-                                                    addXP(pts2 / 2);
+                                                    handleEnemyKill(other, false, 'splash');
                                                     enemies.splice(j, 1);
                                                 }
                                             }
@@ -4546,31 +4628,7 @@
                                     createExplosion(b.group.position, isCrit ? 26 : 18, enemyColor, 'armor', enemy.type);
                                     
                                     if (enemy.isDead) {
-                                        const points = enemy.pointValue || ENEMY_TYPES[enemy.type]?.points || 100; // v26
-                                        state.score += points;
-                                        state.kills++; // v2: run stats
-                                        SFX.kill(); // v23
-                                        if (state.playerStats.healOnKill) { // v5: Field Medic
-                                            player.hp = Math.min(player.maxHp, player.hp + state.playerStats.healOnKill);
-                                        }
-                                        if (state.playerStats.adrenaline) { // v5: Adrenaline Rush
-                                            state.speedBoostUntil = clock.getElapsedTime() + 1.5;
-                                        }
-                                        const __payout = Math.floor((enemy.pointValue || (enemy.typeData ? enemy.typeData.points : 50)) * Math.min(2.2, 1 + state.combo * 0.2) * 0.5 * (1 + (state.runCoinBoost || 0))); // v26
-                                        trackKill(!!enemy.isBoss, isCrit, __payout); // v23
-                                        addKillReward(enemy); // FIX (Coins): combo + coin reward — wired at the real kill site
-                                        addKillFeed(points, (ENEMY_TYPES[enemy.type]?.name || 'Tank') + (isCrit ? ' ⚡CRIT' : ''), state.combo); // v2 UI + v4 crit
-                                        addXP(points / 2);
-                                        showScorePopup(enemy.mesh.position.x, enemy.mesh.position.z, points);
-                                        if (enemy.isBoss) { // v6(C): boss loot + celebration
-                                            createExplosion(enemy.mesh.position.clone(), 120, 0xffaa00, 'armor', enemy.type);
-                                            state.cameraShake = 0.8;
-                                            showBossBanner('🏆 ' + (ENEMY_TYPES[enemy.type]?.name || 'BOSS') + ' DEFEATED! +' + points + ' coins-ready points');
-                                            SFX.bossDown(); SFX.vibrate([60, 40, 60, 40, 120]); // v23
-                                            player.hp = Math.min(player.maxHp, player.hp + Math.ceil(player.maxHp * 0.25)); // loot heal
-                                            state.bossActive = null;
-                                            updateBossBar();
-                                        }
+                                        handleEnemyKill(enemy, isCrit, 'shell');
                                         enemies.splice(j, 1);
                                     }
                                     if (b.group.userData.pierce > 0) { // v5: keep flying through
@@ -4732,15 +4790,20 @@
             streamChunks(player.mesh.position.x, player.mesh.position.z, false);
             updateChunkStream();
 
-            // v6(C): boss wave gate — one boss at a time, queued bosses wait
-            if (state.bossPending && !state.bossActive) {
+            // v6(C): boss wave gate — one at a time; v26.4: wait out cards + short cooldown
+            if (state.bossActive && (state.bossActive.isDead || !enemies.includes(state.bossActive))) {
+                state.bossActive = null;
+                try { updateBossBar(); } catch (err) {}
+            }
+            if (state.bossPending && !state.bossActive && !state.isChoosingUpgrade
+                && (state.runTime || 0) >= (state.bossCooldownUntil || 0)) {
                 state.bossPending = false;
                 spawnBoss();
             }
 
             // Spawner (v10: mode-aware — v26.2: slightly slower cadence, lower ceiling)
-            const floor = (state.mode === 'casual' && state.level > 20) ? 1.0 : 1.3;
-            const spawnRate = Math.max(floor, 3.5 - state.level * 0.15);
+            const floor = (state.mode === 'casual' && state.level > 20) ? 1.0 : 1.4;
+            const spawnRate = Math.max(floor, 3.6 - state.level * 0.12);
             let maxEnemies = state.mode === 'levels'
                 ? state.levelsCfg.density + Math.floor(state.level / 8)
                 : Math.min(13, 3 + state.level);
@@ -5384,6 +5447,7 @@ function updateCombo(dt){
 function showUpgradeChoices(){
     state.isChoosingUpgrade = true;
     state.input.isFiring = false;
+    try {
 
     const pool = [...CHOICE_UPGRADES];
     const cardCount = 3 + ((state.meta || {}).cards || 0); // v10: Extra Choice
@@ -5422,6 +5486,10 @@ function showUpgradeChoices(){
         overlay.appendChild(rr);
     }
     document.body.appendChild(overlay);
+    } catch (err) {
+        try { console.error(err); } catch (e) {}
+        state.isChoosingUpgrade = false; // v26.4: never freeze the run if cards fail to open
+    }
 }
 
 function pickUpgradeCard(card, up, overlay, cards){
