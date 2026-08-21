@@ -309,6 +309,19 @@ check('Field Medic heals on kill via the real bullet path', ev('player.hp') >= 5
 unquietXp();
 closeCards();
 
+// ---------------------------------------------------------------- 8b. v27.4: HUD scale + smoke + ground offset
+const hudOk = ev("(function(){ var panel = document.getElementById('hp-panel'); var txt = document.querySelector('.hp-text'); return { underLevel: !!(panel && panel.parentElement && panel.parentElement.classList.contains('hud-center')), textHidden: txt ? getComputedStyle(txt).display === 'none' : 'gone' }; })()");
+check('v27.4: HP panel sits directly under the level chip', hudOk.underLevel === true, JSON.stringify(hudOk));
+check('v27.4: HP numbers hidden (scale display only)', hudOk.textHidden === true || hudOk.textHidden === 'gone', String(hudOk.textHidden));
+ev("(function(){ player.maxHp = 200; player.hp = 80; updateHUD(); return 'set'; })()");
+const hpWidth = ev("document.getElementById('hp-bar').style.width");
+check('v27.4: HP bar shows 40% width after damage', hpWidth === '40%', 'got ' + hpWidth);
+const smokeN = ev("(function(){ var n0 = particles.length; var e = makeScaledEnemy('scout', 30, 30); e.die(); return particles.length - n0; })()");
+check('v27.4: enemy death effects are lighter (10-21 particles)', smokeN >= 10 && smokeN <= 21, 'particles=' + smokeN);
+step(2);
+const offDelta = ev("(function(){ var ty = getTerrainHeight(player.mesh.position.x, player.mesh.position.z); return Math.abs(player.mesh.position.y - (ty + 0.3)); })()");
+check('v27.4: player rides 0.3 above terrain (anti-sinking)', offDelta < 0.05, 'delta=' + offDelta);
+
 // ---------------------------------------------------------------- 9. glow pool + shop
 const glow = ev("(glowLightPool.length || (initGlowLights(), glowLightPool.length))");
 check('glowLightPool has 8 entries', glow === 8, 'got ' + glow);
@@ -342,6 +355,32 @@ check('soak: 0 errors over 60s at lv15', cleanSoFar(), errDetail());
 check('soak: all live enemies still carry bars', ev("enemies.every(function(e){ return e.isBoss || !!e.hpBar; })") === true);
 check('soak: live enemies under the ceiling (<= 15 +3 surge +3 pack)', maxSeen.n <= 21, 'max concurrent=' + maxSeen.n);
 check('soak: still playing (no crash)', ev("state.gamePhase") === 'playing', ev("state.gamePhase"));
+
+// ---------------------------------------------------------------- 12. v27.4: save/load keeps boosts, consumables untouched
+quietBoard();
+ev("(function(){ var c = consumables(); c.overcharge = 2; c.aegis = 1; return 'stash'; })()");
+ev("(function(){ state.playerStats.damage = 250; state.runCoinBoost = 0.2; state.overchargeUntil = state.runTime + 40; state.shieldUp = true; state.shieldReadyAt = 123; window.__snap = snapshotRun(); return window.__snap.playerStats.damage; })()");
+ev("startGame('casual', { resume: window.__snap })");
+step(30);
+const resState = ev("(function(){ return { dmg: state.playerStats.damage, coinBoost: state.runCoinBoost, oc: state.overchargeUntil - state.runTime, shield: state.shieldUp, ring: !!(player && player.shieldRing && player.shieldRing.visible), consOC: consumables().overcharge, consAegis: consumables().aegis, phase: state.gamePhase }; })()");
+check('v27.4: resume keeps claimed card buffs (damage 250)', resState.dmg === 250, JSON.stringify(resState));
+check('v27.4: resume keeps Lucky coin boost (x0.2)', resState.coinBoost === 0.2);
+check('v27.4: resume keeps Overcharge window (~40s left)', resState.oc > 35 && resState.oc <= 40, 'left=' + resState.oc);
+check('v27.4: resume keeps Aegis shield + ring visible', resState.shield === true && resState.ring === true);
+check('v27.4: resume does NOT re-consume consumables (2/1)', resState.consOC === 2 && resState.consAegis === 1);
+quietBoard();
+
+// ---------------------------------------------------------------- 13. v27.4: biome morph re-grounds all scenery
+ev("envChunks.forEach(function(c){ c.__preMorph = true; });");
+ev("startBiomeMorph((state.currentBiome + 1) % BIOMES.length)");
+let mFrames = 0;
+while (ev("biomeBlend !== null") && mFrames++ < 1200) step(1); // 8s morph + grace + final tile pass
+let dFrames = 0;
+while (ev("chunkTasks.length > 0") && dFrames++ < 600) step(1); // drain the forced rebuild wave
+const morphRes = ev("(function(){ var pre = 0; envChunks.forEach(function(c){ if (c.__preMorph) pre++; }); return { pre: pre, total: envChunks.size, blend: biomeBlend === null }; })()");
+check('v27.4: morph completes (blend cleared)', morphRes.blend === true, 'frames=' + mFrames + '/' + dFrames);
+check('v27.4: ALL chunks rebuilt at final heights (no floating pre-morph scenery)', morphRes.total > 0 && morphRes.pre === 0, JSON.stringify(morphRes));
+check('v27.4: morph + forced rebuild ran clean', cleanSoFar(), errDetail());
 
 // ---------------------------------------------------------------- report
 console.log(NL + '================ RESULTS ================');
