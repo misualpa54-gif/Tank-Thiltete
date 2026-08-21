@@ -892,7 +892,7 @@
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">v26.4</div>
+        <div class="version-tag" id="version-tag">v26.5</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -2840,29 +2840,31 @@
 
                 scene.add(this.mesh);
 
-                // v26.4: world HP bars for regular enemies (bosses keep the top HUD bar)
+                // v26.5: canvas sprite — name + real HP fill (planes were drawing the fill behind the track)
                 this.hpBar = null;
-                this.hpBarFill = null;
+                this._hpCanvas = null;
+                this._hpTex = null;
                 const bossTypes = { warlord:1, colossus:1, nova:1, titan:1, tempest:1, fortress:1 };
                 if (!isPlayer && !bossTypes[type]) {
-                    const barW = 2.2 * Math.max(0.85, scale);
-                    const bg = new THREE.Mesh(
-                        new THREE.PlaneGeometry(barW, 0.22),
-                        new THREE.MeshBasicMaterial({ color: 0x111111, depthTest: false, transparent: true, opacity: 0.8 })
-                    );
-                    const fill = new THREE.Mesh(
-                        new THREE.PlaneGeometry(barW * 0.94, 0.14),
-                        new THREE.MeshBasicMaterial({ color: 0x22c55e, depthTest: false, depthWrite: false })
-                    );
-                    fill.position.z = 0.02;
-                    this.hpBar = new THREE.Group();
-                    this.hpBar.add(bg);
-                    this.hpBar.add(fill);
-                    this.hpBarFill = fill;
-                    this.hpBar._barW = barW * 0.94;
-                    this._hpBarLift = 2.6 * scale + 0.7;
-                    this.hpBar.renderOrder = 9;
-                    scene.add(this.hpBar);
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 256;
+                    canvas.height = 64;
+                    const tex = new THREE.CanvasTexture(canvas);
+                    tex.minFilter = THREE.LinearFilter;
+                    tex.magFilter = THREE.LinearFilter;
+                    const mat = new THREE.SpriteMaterial({
+                        map: tex, transparent: true, depthTest: false, depthWrite: false, opacity: 0.9
+                    });
+                    const spr = new THREE.Sprite(mat);
+                    const s = Math.max(0.85, scale);
+                    spr.scale.set(2.35 * s, 0.58 * s, 1);
+                    spr.renderOrder = 10;
+                    this.hpBar = spr;
+                    this._hpCanvas = canvas;
+                    this._hpTex = tex;
+                    this._hpName = (this.typeData && this.typeData.name) || type;
+                    this._hpBarLift = 2.85 * scale + 0.85;
+                    scene.add(spr);
                     this.updateHpBar();
                 }
             }
@@ -3015,20 +3017,40 @@
             }
 
             updateHpBar() {
-                if (!this.hpBarFill) return;
+                if (!this._hpCanvas || !this._hpTex) return;
+                const canvas = this._hpCanvas;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) return;
+                const w = canvas.width, h = canvas.height;
+                ctx.clearRect(0, 0, w, h);
                 const frac = Math.max(0, Math.min(1, this.hp / (this.maxHp || 1)));
-                this.hpBarFill.scale.x = Math.max(0.03, frac);
-                this.hpBarFill.position.x = (frac - 1) * (this.hpBar._barW || 2) * 0.5;
-                this.hpBarFill.material.color.setHex(frac < 0.3 ? 0xef4444 : frac < 0.6 ? 0xfacc15 : 0x22c55e);
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.font = '600 20px system-ui, sans-serif';
+                ctx.fillStyle = 'rgba(0,0,0,0.55)';
+                ctx.fillText(this._hpName || '', w / 2 + 1, 18 + 1);
+                ctx.fillStyle = 'rgba(255,255,255,0.88)';
+                ctx.fillText(this._hpName || '', w / 2, 18);
+                const bx = 22, by = 36, bw = w - 44, bh = 14;
+                ctx.fillStyle = 'rgba(0,0,0,0.62)';
+                ctx.fillRect(bx, by, bw, bh);
+                ctx.fillStyle = 'rgba(255,255,255,0.18)';
+                ctx.fillRect(bx, by, bw, 1);
+                const col = frac < 0.3 ? '#ef4444' : frac < 0.6 ? '#facc15' : '#4ade80';
+                ctx.fillStyle = col;
+                ctx.fillRect(bx + 2, by + 2, Math.max(0, (bw - 4) * frac), bh - 4);
+                this._hpTex.needsUpdate = true;
             }
 
             die() {
                 this.isDead = true;
                 if (this.hpBar) {
                     scene.remove(this.hpBar);
+                    if (this._hpTex) this._hpTex.dispose();
                     disposeObject3D(this.hpBar);
                     this.hpBar = null;
-                    this.hpBarFill = null;
+                    this._hpCanvas = null;
+                    this._hpTex = null;
                 }
                 if (this.isBoss && state.bossActive === this) {
                     state.bossActive = null;
@@ -4533,10 +4555,9 @@
                     if (enemyFireRoll(0.012 * (ENEMY_TYPES[e.type]?.fireRate || 0.4), dt)) shoot(e); // v10
                 }
                 if (!moved) e.move(dt, _sv1.set(0, 0)); // idle: terrain follow only
-                if (e.hpBar && camera && !e.isDead) {
+                if (e.hpBar && !e.isDead) {
                     e.hpBar.position.copy(e.mesh.position);
-                    e.hpBar.position.y += e._hpBarLift || 3;
-                    e.hpBar.quaternion.copy(camera.quaternion);
+                    e.hpBar.position.y += e._hpBarLift || 3.4;
                 }
             });
 
