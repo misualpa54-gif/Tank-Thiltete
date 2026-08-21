@@ -17,7 +17,7 @@ one.
 - Every update I make is **pushed to the branch** right away.
 - Your testing link always serves the newest version from the branch
   (refresh after ~5 minutes):
-  https://raw.githack.com/misualpa54-gif/Tank-Thiltete/arena/01a02138-tank-thiltete/tank_realms_v25_standalone%20(1).html
+  https://raw.githack.com/misualpa54-gif/Tank-Thiltete/arena/01a02138-tank-thiltete/tank_realms_latest.html
 - Bookmark that link on your phone.
 
 ## When you are 100% done and happy
@@ -27,7 +27,7 @@ Say something clear like: **"merge and end the session"**.
 Then — and only then — I will merge the Pull Request as the very last action.
 After that, this chat is finished and the merged version becomes the
 permanent link:
-https://raw.githack.com/misualpa54-gif/Tank-Thiltete/main/tank_realms_v25_standalone%20(1).html
+https://raw.githack.com/misualpa54-gif/Tank-Thiltete/main/tank_realms_latest.html
 
 ## Quick answers
 
