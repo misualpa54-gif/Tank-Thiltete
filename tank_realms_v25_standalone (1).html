@@ -1292,7 +1292,16 @@
             cameraShake: 0,
             playerStats: { speed: 100, damage: 100, fireRate: 100, armor: 0, regen: 0, maxHp: 100, multishot: 0 },
             enemiesIntroduced: new Set(),
-            targetEnemy: null // Added for sticky auto-aim
+            targetEnemy: null, // Added for sticky auto-aim
+            // v27.1 (safety): these were undefined until first assigned deep inside a run,
+            // yet hot paths read them every frame. Defaults match what startGame() assigns,
+            // so behaviour is unchanged — the fields simply always exist now.
+            coins: 0,                    // shop wallet (loadGame() overwrites from the save)
+            surgeActive: false, surgeNextAt: 0, surgeEndsAt: 0, surgeLastSpawn: 0, // v26 ENEMY SURGE
+            overchargeUntil: 0,          // v26 consumable
+            speedBoostUntil: 0,          // v5 Adrenaline
+            invulnUntil: 0,              // v4 Second Wind
+            bossPending: false, bossActive: null, bossCount: 0 // v6(C) boss gate
         };
 
         let audioCtx = null;
@@ -1611,7 +1620,7 @@
         // ============================================
         // v25: GRAPHICS QUALITY — Auto detects weak devices; Low strips shadows/particles
         // ============================================
-        let _fpsSamples = [], _autoDecided = false;
+        let _fpsSamples = [], _autoDecided = false, _autoHigh = false;
         function applyQuality(mode) {
             const low = mode === 'low';
             renderer.shadowMap.enabled = !low;
@@ -1627,23 +1636,44 @@
         function cycleQuality() {
             const order = ['auto', 'high', 'low'];
             const next = order[(order.indexOf(state.quality) + 1) % 3];
+            _autoHigh = false; // v27.1: a manual choice always overrides auto monitoring
             applyQuality(next);
             showUpgradeNotification(next === 'low' ? 'Graphics: Low (smoothest)' : next === 'high' ? 'Graphics: High' : 'Graphics: Auto');
         }
-        function autoQualityTick(dt) { // samples fps while playing; drops to Low on weak devices (once)
-            if (state.quality !== 'auto' || _autoDecided) return;
+        function autoQualityTick(dt) { // samples fps while playing; drops to Low on weak devices
             if (state.gamePhase !== 'playing') return;
             if (dt > 0.005 && dt < 0.2) _fpsSamples.push(1 / dt);
+            if (!_autoDecided) {
+                if (state.quality !== 'auto') return; // user picked a mode manually before the decision
+                if (_fpsSamples.length >= 240) {
+                    _autoDecided = true;
+                    const avg = _fpsSamples.reduce((a, b) => a + b, 0) / _fpsSamples.length;
+                    _fpsSamples = [];
+                    if (avg < 40) {
+                        applyQuality('low');
+                        showUpgradeNotification('⚙ Graphics set to Low for smooth play');
+                    } else {
+                        state.quality = 'high';
+                        _autoHigh = true; // v27.1: keep watching below
+                    }
+                    try { saveGame(); } catch (e) {}
+                }
+                return;
+            }
+            // v27.1 (perf): re-evaluate after the boot decision. Busy late levels can still
+            // overwhelm a device that looked fine at boot — if fps stays poor for a full
+            // ~4s window, drop to Low ONCE. Never auto-upgrades back; a manual choice in
+            // settings always wins (cycleQuality clears _autoHigh).
+            if (!_autoHigh || state.quality === 'low') return;
             if (_fpsSamples.length >= 240) {
-                _autoDecided = true;
                 const avg = _fpsSamples.reduce((a, b) => a + b, 0) / _fpsSamples.length;
-                if (avg < 40) {
+                _fpsSamples = [];
+                if (avg < 33) {
+                    _autoHigh = false;
                     applyQuality('low');
                     showUpgradeNotification('⚙ Graphics set to Low for smooth play');
-                } else {
-                    state.quality = 'high';
+                    try { saveGame(); } catch (e) {}
                 }
-                try { saveGame(); } catch (e) {}
             }
         }
 
@@ -2828,6 +2858,7 @@
                 const prevVel = _moveV1.copy(this.velocity);
                 
                 if (inputVec.length() > 0.1) {
+                    this._movedThisFrame = true; // v27.1 (perf): lets the enemy loop skip the redundant ground-only pass
                     let speed = CONFIG.playerSpeed;
                     if (this.isPlayer) {
                         speed *= state.playerStats.speed / 100;
@@ -4258,8 +4289,11 @@
             enemies.forEach(e => {
                 if (e.isDead) return;
 
-                // Terrain following for enemies
-                e.move(dt, _sv1.set(0, 0)); // This updates terrain height // FIX (Tier 3)
+                // v27.1 (perf): this used to call e.move(dt, (0,0)) here for EVERY enemy and
+                // then move() again inside the AI below — two terrain passes per enemy per
+                // frame. Now the ground-only upkeep runs after the AI, and only for enemies
+                // that stood still that frame. Behaviour for movers is byte-identical.
+                e._movedThisFrame = false;
 
                 const toPlayer = _tv4.subVectors(player.mesh.position, e.mesh.position); // FIX (Tier 3): scratch vector
                 const dist = toPlayer.length();
@@ -4430,6 +4464,9 @@
                     e.aimAt(player.mesh.position, dt); // FIX (Tier 4)
                     if (enemyFireRoll(0.012 * (ENEMY_TYPES[e.type]?.fireRate || 0.4), dt)) shoot(e); // v10
                 }
+
+                // Terrain following for enemies that didn't move this frame (height/tilt upkeep)
+                if (!e._movedThisFrame) e.move(dt, _sv1.set(0, 0)); // FIX (Tier 3)
             });
 
             // v5: remove enemies that died outside the bullet path (kamikaze detonations)
@@ -4885,9 +4922,20 @@
             setTimeout(() => entry.remove(), 1300);
         }
 
+        // v27.1 (perf): coins chip refresh — cached compare instead of the old 500ms
+        // polling interval (which rewrote the DOM twice a second even when unchanged
+        // and kept ticking in menus). The chip now updates within one frame of a change.
+        var _lastCoinsShown;
+        function refreshCoinsHUD() {
+            const el = document.getElementById('coins');
+            const c = state.coins || 0;
+            if (el && c !== _lastCoinsShown) { _lastCoinsShown = c; el.innerText = c; }
+        }
+
         function updateHUD() {
             dom('score').textContent = state.score; // FIX (Tier 4): cached lookups
             dom('level').textContent = state.level;
+            refreshCoinsHUD(); // v27.1 (perf): coins ride along with every HUD refresh
             
             const xpPct = (state.xp / state.xpToNext) * 100;
             dom('xp-bar').style.width = xpPct + '%';
@@ -4956,6 +5004,7 @@
             runChunkTasks(3); // v22: chunk micro-ops progress every frame, independent of physics
             const dt = Math.min(clock.getDelta(), 0.1);
             if (state.gamePhase === 'playing') { updatePhysics(dt); needsRender = true; }
+            refreshCoinsHUD(); // v27.1 (perf): one cached compare per frame replaces the 500ms coin poll
             // FIX (Tier 3): don't burn GPU/battery rendering a static scene in menus/pause.
             if (needsRender) { renderer.render(scene, camera); needsRender = false; }
         }
@@ -5270,7 +5319,24 @@
         }
         setPauseUIVisible(false);
         syncHUDControls();
-        init();
+        // v27.1 (safety): if init() throws, the page used to half-start silently — dead
+        // menu buttons, black canvas, no explanation. Show a clear recovery box instead.
+        function showBootError(err) {
+            const d = document.createElement('div');
+            d.setAttribute('style', 'position:fixed;inset:0;z-index:99999;background:rgba(10,15,25,.94);color:#ffd479;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-family:system-ui,sans-serif;padding:24px;');
+            const msg = String((err && err.message) || err).replace(/</g, '&lt;');
+            d.innerHTML = '<div style="font-size:20px;font-weight:700;margin-bottom:10px;">⚠ Tank Realms could not start</div>' +
+                '<div style="color:#cbd5e1;font-size:14px;max-width:420px;margin-bottom:18px;">Something went wrong while loading the game. Tap Reload — if it keeps happening, tell the assistant what the red text says.</div>' +
+                '<div style="color:#f87171;font-size:12px;max-width:420px;word-break:break-word;margin-bottom:20px;">' + msg + '</div>' +
+                '<button onclick="location.reload()" style="background:#ffd479;color:#0a0f19;border:none;border-radius:10px;padding:12px 28px;font-size:16px;font-weight:700;">Reload</button>';
+            (document.body || document.documentElement).appendChild(d);
+        }
+        try {
+            init();
+        } catch (e) {
+            console.error('Boot failed:', e);
+            try { showBootError(e); } catch (e2) {}
+        }
 
         // FIX (v2/P1): auto-pause when the app goes to the background (screen off,
         // app switch, incoming call). Previously the game kept running hidden —
@@ -5506,11 +5572,10 @@ function loadGame(){
 
 loadGame();
 
-// HUD coins display
-setInterval(()=>{
-    const el = document.getElementById('coins');
-    if (el) el.innerText = state.coins; // v26: dead fallback branch removed — the coins chip always exists
-},500);
+// HUD coins display — v27.1 (perf): the old 500ms polling interval was removed.
+// The chip now refreshes via refreshCoinsHUD() (defined next to updateHUD) from
+// updateHUD() and the frame loop — a cached compare, so the DOM is only touched
+// when the value actually changes.
 
 </script>
 <script>
