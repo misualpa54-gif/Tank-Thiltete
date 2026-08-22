@@ -401,6 +401,19 @@
         .run-num { color: #fff; font-size: 22px; font-weight: 700; }
         .run-label { color: rgba(255,255,255,0.55); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; margin-top: 4px; }
         /* v4: level-up choice cards */
+        #black-market {
+            position: fixed; inset: 0; z-index: 410; pointer-events: auto;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+            background: rgba(12, 6, 4, 0.86); backdrop-filter: blur(12px);
+        }
+        #black-market .bm-title { color: #fbbf24; font-size: 22px; font-weight: 800; letter-spacing: 2px; }
+        #black-market .bm-sub { color: rgba(255,255,255,0.65); font-size: 13px; margin-bottom: 6px; }
+        #black-market .bm-row { width: min(92vw, 340px); display: flex; align-items: center; justify-content: space-between;
+            gap: 10px; padding: 10px 14px; border-radius: 12px; border: 1px solid rgba(251,191,36,0.28);
+            background: rgba(255,255,255,0.06); color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; }
+        #black-market .bm-row:disabled { opacity: 0.4; }
+        #black-market .bm-leave { margin-top: 6px; color: #e2e8f0; background: rgba(255,255,255,0.1); border: none;
+            border-radius: 10px; padding: 10px 22px; font-weight: 700; cursor: pointer; }
         #upgrade-choice {
             position: fixed;
             inset: 0;
@@ -892,7 +905,7 @@
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">v27</div>
+        <div class="version-tag" id="version-tag">v27.1</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -965,7 +978,7 @@
         </div>
         <div id="new-best-badge" class="hidden">★ NEW BEST! ★</div>
         <button class="btn btn-restart" id="btn-restart">Try Again</button>
-        <button class="btn" id="btn-continue-run" style="background: linear-gradient(135deg, #f59e0b 0%, #b45309 100%); box-shadow: 0 10px 40px rgba(245,158,11,0.45);">✨ Continue · 💰 <span id="continue-cost">800</span></button>
+        <button class="btn" id="btn-continue-run" style="background: linear-gradient(135deg, #f59e0b 0%, #b45309 100%); box-shadow: 0 10px 40px rgba(245,158,11,0.45);">✨ Revive for 💰 <span id="continue-cost">300</span>?</button>
         <button class="btn" id="btn-go-home" style="background: linear-gradient(135deg, #64748b 0%, #334155 100%); box-shadow: 0 10px 40px rgba(51,65,85,0.4);">⌂ Back to Home</button>
         <button class="btn" id="btn-shop" style="background: linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%); box-shadow: 0 10px 40px rgba(14,165,233,0.4);">🛒 Armory &nbsp;·&nbsp; 💰 <span id="shop-coins-go">0</span></button>
     </div>
@@ -3214,7 +3227,8 @@
             const spreadAngle = 0.12;
             const damage = source.isPlayer
                 ? CONFIG.baseDamage * (state.playerStats.damage / 100)
-                    * ((state.runTime || 0) < (state.overchargeUntil || 0) ? 1.3 : 1) // v26: Overcharge
+                    * ((state.runTime || 0) < (state.overchargeUntil || 0) ? 1.3 : 1)
+                    * ((state.runTime || 0) < (state.blastUntil || 0) ? 1.2 : 1)
                 : (ENEMY_TYPES[source.type]?.damage || 12);
 
             for (let i = 0; i < shotCount; i++) {
@@ -3725,6 +3739,8 @@
             { id:'regen_inf', icon:'💚', name:'Nano Forge',      desc:'+0.5 HP/s regen (UNLIMITED — price rises fast)',    base:700, growth:1.40, max:Infinity },
             { id:'fire_inf',  icon:'🔥', name:'Autoloader',      desc:'+2% fire rate (UNLIMITED — price rises fast)',      base:550, growth:1.36, max:Infinity },
             { id:'crit_inf',  icon:'🎯', name:'Lucky Optics',    desc:'+1% crit chance (UNLIMITED — price rises fast)',    base:650, growth:1.40, max:Infinity },
+            { id:'optics_inf', icon:'🔭', name:'Precision Optics', desc:'+1% fire rate (UNLIMITED — steep)', base:480, growth:1.33, max:Infinity },
+            { id:'door_inf',   icon:'🚪', name:'Blast Door',       desc:'+5 starting Max HP (UNLIMITED — steep)', base:520, growth:1.32, max:Infinity },
         ];
         const SKINS = [
             { id:'amber',   name:'Amber Strike',  color:0xf59e0b, cost:0 },
@@ -3902,11 +3918,16 @@
             if (overwriteName) {
                 const i = state.casualSaves.findIndex(s => s.name === overwriteName);
                 if (i >= 0) {
-                    state.casualSaves[i] = { ...snap, name: overwriteName };
-                    state.activeSaveName = overwriteName;
+                    let final = (name || overwriteName).trim() || overwriteName;
+                    if (final !== overwriteName) {
+                        let n = 2, base = final;
+                        while (state.casualSaves.some((s, idx) => idx !== i && s.name === final)) final = base + ' (' + (n++) + ')';
+                    }
+                    state.casualSaves[i] = { ...snap, name: final };
+                    state.activeSaveName = final;
                     state.savedThisRun = true;
                     try { saveGame(); } catch (e) {}
-                    return overwriteName;
+                    return final;
                 }
             }
             snap.name = name;
@@ -4138,6 +4159,8 @@
             state.pendingChoices = 0;
             state.pendingBiome = null;
             document.querySelectorAll('#upgrade-choice').forEach(o => o.remove());
+            document.querySelectorAll('#black-market').forEach(o => o.remove());
+            state.marketOpen = false;
             state.startLevelUsed = (mode === 'levels' && opts.startLevel) || 1;
             state.input = { x: 0, y: 0, isFiring: false };
             state.lastSpawnTime = clock.getElapsedTime();
@@ -4160,6 +4183,8 @@
                 state.playerStats.regen += (meta.regen_inf || 0) * 0.5;
                 state.playerStats.fireRate += (meta.fire_inf || 0) * 2;
                 state.playerStats.crit += (meta.crit_inf || 0) * 1;
+                state.playerStats.fireRate += (meta.optics_inf || 0) * 1;
+                state.playerStats.maxHp += (meta.door_inf || 0) * 5;
             }
             state.reviveAvailable = (meta.revive || 0) > 0;
             if (!resume) state.continuesThisRun = 0;
@@ -4287,9 +4312,14 @@
             const z = player.mesh.position.z + Math.sin(a) * d;
             const ground = getTerrainHeight(x, z);
             const g = new THREE.Group();
+            const black = !!arguments[0] || Math.random() < 0.26;
             const crate = new THREE.Mesh(
                 new THREE.BoxGeometry(1.3, 1.1, 1.3),
-                new THREE.MeshStandardMaterial({ color: 0xfbbf24, emissive: 0xaa7700, emissiveIntensity: 0.55, metalness: 0.3, roughness: 0.45 })
+                new THREE.MeshStandardMaterial({
+                    color: black ? 0x7c3aed : 0xfbbf24,
+                    emissive: black ? 0x4c1d95 : 0xaa7700,
+                    emissiveIntensity: 0.7, metalness: 0.35, roughness: 0.4
+                })
             );
             crate.position.y = 0.55;
             g.add(crate);
@@ -4308,17 +4338,75 @@
             g.add(chute);
             const beam = new THREE.Mesh(
                 new THREE.CylinderGeometry(0.18, 0.55, 18, 8, 1, true),
-                new THREE.MeshBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false })
+                new THREE.MeshBasicMaterial({ color: black ? 0xc084fc : 0xfbbf24, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false })
             );
             beam.position.y = 9;
             g.add(beam);
             g.position.set(x, ground + 16, z);
             scene.add(g);
-            supplyDrops.push({ group: g, chute: chute, beam: beam, yLand: ground, falling: true, bob: Math.random() * 6 });
-            showUpgradeNotification('📦 Supply drop inbound');
+            supplyDrops.push({ group: g, chute: chute, beam: beam, yLand: ground, falling: true, bob: Math.random() * 6, black: black });
+            showUpgradeNotification(black ? '☠️ Black Market inbound' : '📦 Supply drop inbound');
+        }
+        function closeBlackMarket() {
+            const el = document.getElementById('black-market');
+            if (el) el.remove();
+            state.marketOpen = false;
+            state.input.isFiring = false;
+        }
+        function openBlackMarket() {
+            closeBlackMarket();
+            state.marketOpen = true;
+            state.input.isFiring = false;
+            const box = document.createElement('div');
+            box.id = 'black-market';
+            const mk = (label, cost, fn) => {
+                const b = document.createElement('button');
+                b.className = 'bm-row';
+                b.innerHTML = '<span>' + label + '</span><span>💰 ' + cost + '</span>';
+                b.onclick = (ev) => {
+                    ev.preventDefault(); ev.stopPropagation();
+                    if ((state.coins || 0) < cost) { showUpgradeNotification('Not enough coins'); return; }
+                    state.coins -= cost;
+                    try { fn(); } catch (e) {}
+                    try { SFX.coin(); saveGame(); updateHUD(); } catch (e) {}
+                    closeBlackMarket();
+                };
+                return b;
+            };
+            box.appendChild(Object.assign(document.createElement('div'), { className: 'bm-title', textContent: '☠️ BLACK MARKET' }));
+            box.appendChild(Object.assign(document.createElement('div'), { className: 'bm-sub', textContent: 'Pay coins. One deal. Then it vanishes.' }));
+            box.appendChild(mk('❤️ Full repair', 400, () => {
+                player.hp = player.maxHp;
+                try { createHealEffect(player.mesh.position); } catch (e) {}
+                showUpgradeNotification('❤️ Fully repaired');
+            }));
+            box.appendChild(mk('💥 +20% damage 60s', 300, () => {
+                state.blastUntil = (state.runTime || 0) + 60;
+                showUpgradeNotification('💥 +20% damage — 60s');
+            }));
+            box.appendChild(mk('🛡️ Shield charge', 350, () => {
+                state.shieldUp = true; state.shieldReadyAt = 0;
+                if (player.shieldRing) player.shieldRing.visible = true;
+                showUpgradeNotification('🛡️ Shield charged');
+            }));
+            box.appendChild(mk('🃏 Instant bonus card', 800, () => {
+                showUpgradeNotification('🌟 Bonus upgrade');
+                if (!state.isChoosingUpgrade) showUpgradeChoices();
+                else state.pendingChoices = (state.pendingChoices || 0) + 1;
+            }));
+            const leave = document.createElement('button');
+            leave.className = 'bm-leave'; leave.textContent = 'Leave';
+            leave.onclick = (ev) => { ev.preventDefault(); closeBlackMarket(); };
+            box.appendChild(leave);
+            document.body.appendChild(box);
         }
         function collectSupplyDrop(drop) {
             if (!drop || !player) return;
+            if (drop.black) {
+                try { scene.remove(drop.group); disposeObject3D(drop.group); } catch (e) {}
+                openBlackMarket();
+                return;
+            }
             const kinds = ['repair', 'overcharge', 'shield', 'coins', 'card', 'haste', 'xp'];
             const kind = kinds[Math.floor(Math.random() * kinds.length)];
             if (kind === 'repair') {
@@ -5149,7 +5237,7 @@
                 for (const d of supplyDrops) {
                     if (!d || !d.group) continue;
                     const [sx, sz] = toMap(d.group.position.x, d.group.position.z);
-                    ctx.fillStyle = '#fbbf24';
+                    ctx.fillStyle = d.black ? '#c084fc' : '#fbbf24';
                     ctx.fillRect(sx - 3, sz - 3, 6, 6);
                 }
             }
@@ -5281,7 +5369,7 @@
         }
 
         function continueCost() {
-            return Math.round(800 * Math.pow(5, state.continuesThisRun || 0));
+            return Math.round(300 * Math.pow(4, state.continuesThisRun || 0));
         }
         function buyContinue() { // v27: pay coins on the death screen to keep THIS run
             if (state.gamePhase !== 'gameover' || !state.playerStats) return;
@@ -5315,7 +5403,7 @@
             setScreenVisibility('game-over-screen', false);
             setPauseUIVisible(true);
             SFX.revive(); SFX.engineStart(); SFX.musicStart();
-            showUpgradeNotification('✨ Continued — 50% HP, 3s safe');
+            showUpgradeNotification('✨ Revived — 50% HP, 3s safe');
             updateHUD();
             needsRender = true;
         }
@@ -5535,10 +5623,11 @@
         });
         document.getElementById('btn-save-overwrite').addEventListener('click', (e) => {
             e.stopPropagation();
-            const name = state.activeSaveName;
-            const saved = name ? upsertNamedSave(name, name) : saveCurrentRun((document.getElementById('save-name-input').value || '').trim() || 'Run');
+            const typed = (document.getElementById('save-name-input').value || '').trim();
+            const slot = state.activeSaveName;
+            const saved = slot ? upsertNamedSave(typed || slot, slot) : saveCurrentRun(typed || 'Run');
             closeSaveDialog();
-            showUpgradeNotification(saved ? '💾 Overwrote “' + saved + '”' : '💾 Saved');
+            showUpgradeNotification(saved ? '💾 Saved as “' + saved + '”' : '💾 Saved');
         });
 
         document.getElementById('btn-pause').addEventListener('click', (e) => {
@@ -5841,7 +5930,7 @@ function applyUpgrade(up){
 // updatePhysics is the real per-frame function called by animate().
 const oldUpdateLoop = updatePhysics;
 updatePhysics = function(dt){
-    if(state.isChoosingUpgrade) return;
+    if(state.isChoosingUpgrade || state.marketOpen) return;
     updateCombo(dt);
     oldUpdateLoop(dt);
 };
