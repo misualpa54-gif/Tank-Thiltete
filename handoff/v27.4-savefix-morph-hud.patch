@@ -1,0 +1,206 @@
+diff --git a/tank_realms_latest.html b/tank_realms_latest.html
+index 76e4828..9dc35bd 100644
+--- a/tank_realms_latest.html
++++ b/tank_realms_latest.html
+@@ -103,6 +103,8 @@
+             padding: 4px 12px;
+         }
+         #hp-panel .health-bar-container { width: 110px; height: 9px; margin-top: 0; }
++        #hp-panel { padding: 3px 10px; }
++        #hp-panel .hp-text { display: none; } /* v27.4 (owner): scale display, no numbers */
+         .hp-text { font-size: 13px; font-weight: 700; min-width: 48px; text-shadow: 0 1px 3px rgba(0,0,0,0.95); }
+         #minimap { margin-top: 54px; }
+         .pause-build { margin: 2px 0 6px; text-align: center; }
+@@ -233,6 +235,10 @@
+             top: max(15px, env(safe-area-inset-top));
+             transform: translateX(-50%);
+             max-width: 32vw;
++            display: flex; /* v27.4: level chip on top, HP scale right under it */
++            flex-direction: column;
++            align-items: center;
++            gap: 4px;
+         }
+         .hud-top-right {
+             position: absolute;
+@@ -827,19 +833,20 @@
+                 <div class="hud-chip level-chip">LV <span id="level">1</span>
+                     <div class="xp-bar-container"><div class="xp-bar-fill" id="xp-bar"></div></div>
+                 </div>
++                <!-- v27.4 (owner): HP bar lives right below the level, shown as a scale only -->
++                <div id="hp-panel">
++                    <div class="health-bar-container">
++                        <div class="health-bar-fill" id="hp-bar"></div>
++                    </div>
++                    <!-- kept for code compatibility; hidden by CSS (#hp-panel .hp-text) -->
++                    <div class="hp-text">❤️ <span id="hp-text">100</span></div>
++                </div>
+             </div>
+             <div class="hud-top-right">
+                 <canvas id="minimap" width="84" height="84"></canvas>
+             </div>
+         </div>
+-        <div id="hud-bottom">
+-            <div id="hp-panel">
+-                <div class="health-bar-container">
+-                    <div class="health-bar-fill" id="hp-bar"></div>
+-                </div>
+-                <div class="hp-text">❤️ <span id="hp-text">100</span></div>
+-            </div>
+-        </div>
++        <div id="hud-bottom"></div>
+     </div>
+     <div id="vignette-overlay"></div>
+     <div id="dmg-direction"></div>
+@@ -2018,7 +2025,19 @@
+                     const tl = tilesF[b.tileI++];
+                     bakeGroundTile(tl.mesh, tl.worldX, tl.worldZ, BIOMES[state.currentBiome]);
+                 }
+-                if (b.tileI >= tilesF.length) biomeBlend = null;
++                if (b.tileI >= tilesF.length) {
++                    // v27.4 (fix): the terrain morphed under scenery that was placed at the
++                    // OLD biome's heights — rocks/grass/trees were left floating in the air.
++                    // Scenery is baked into merged geometry, so the only correct re-grounding
++                    // is a rebuild: force one radial wave now, at the FINAL heights. The task
++                    // system budget it (no hitch), and the double-buffer swap leaves no gap.
++                    const px2 = player ? player.mesh.position.x : 0, pz2 = player ? player.mesh.position.z : 0;
++                    [...envChunks.keys()]
++                        .map(k => { const p = k.split(','); return { cx: +p[0], cz: +p[1], d: ((+p[0]) * CHUNK - px2) ** 2 + ((+p[1]) * CHUNK - pz2) ** 2 }; })
++                        .sort((a, c) => a.d - c.d)
++                        .forEach(w => buildChunkTask(w.cx, w.cz, true, true));
++                    biomeBlend = null;
++                }
+             }
+         }
+         function maybeTransitionBiome() { // v20: run the pending realm morph once cards are done
+@@ -2369,9 +2388,9 @@
+                 if (done) chunkTasks.shift();
+             }
+         }
+-        function buildChunkTask(cx, cz, front) {
++        function buildChunkTask(cx, cz, front, force) {
+             const key = chunkKey(cx, cz);
+-            if (envChunks.has(key) || chunkTasks.some(t => t.chunk.key === key)) return;
++            if ((!force && envChunks.has(key)) || chunkTasks.some(t => t.chunk.key === key)) return; // v27.4: force overrides the "already built" skip (morph completion re-grounding)
+             const task = planEnvChunk(cx, cz);
+             if (front) chunkTasks.unshift(task); else chunkTasks.push(task);
+         }
+@@ -2896,7 +2915,7 @@
+ 
+                 // Terrain following - FIX FOR SINKING
+                 const terrainY = getTerrainHeight(this.mesh.position.x, this.mesh.position.z);
+-                this.mesh.position.y = terrainY + 0.1; // Slight offset above ground
++                this.mesh.position.y = terrainY + 0.3; // v27.4 (owner): was 0.1 — hull clipped into slopes
+ 
+                 // v2 visuals: dust kick-up behind a moving tank (throttled, cheap)
+                 if (this.isPlayer && state.quality !== 'low' && this.velocity.length() > 8 && Math.random() < 0.12) { // v25
+@@ -3002,7 +3021,7 @@
+                 this.isDead = true;
+                 if (this.isPlayer) SFX.engineStop(); // v23
+                 removeHpBar(this); // v27.3: free the name/HP bar with the tank
+-                createExplosion(this.mesh.position, this.isPlayer ? 70 : 35);
++                    createExplosion(this.mesh.position, this.isPlayer ? 70 : 16); // v27.4 (owner): lighter death smoke
+                 scene.remove(this.mesh);
+                 disposeObject3D(this.mesh); // FIX (Tier 2): free ~20 geometries + materials per tank
+             }
+@@ -3329,7 +3348,7 @@
+             }
+ 
+             // Smoke/Dust
+-            const smokeCount = isArmor ? 6 : (isGround ? 5 : 4);
++            const smokeCount = isArmor ? 3 : (isGround ? 5 : 4); // v27.4 (owner): armor deaths puff less
+             for (let i = 0; i < smokeCount; i++) {
+                 const smokeRadius = 0.8 + Math.random() * 0.6; // FIX (Tier 2): shared unit sphere + scale
+                 let smokeColor = 0x6a6a6a;
+@@ -3986,7 +4005,13 @@
+                 score: state.score, kills: state.kills, runTime: state.runTime, runCoins: state.runCoins,
+                 playerStats: JSON.parse(JSON.stringify(state.playerStats)),
+                 hp: player.hp, x: +player.mesh.position.x.toFixed(1), z: +player.mesh.position.z.toFixed(1),
+-                biome: state.currentBiome
++                biome: state.currentBiome,
++                // v27.4 (fix): boosts that were active when the run was saved — loading used
++                // to drop them entirely (and even re-consumed the consumables).
++                coinBoost: state.runCoinBoost || 0,
++                overchargeLeft: Math.max(0, (state.overchargeUntil || 0) - state.runTime),
++                shieldUp: !!state.shieldUp,
++                shieldReadyAt: state.shieldReadyAt || 0
+             };
+         }
+ 
+@@ -4034,18 +4059,24 @@
+ 
+             state.mode = mode; // v10
+             state.diffMult = DIFFICULTIES[(opts && opts.difficulty) || 'normal'] || DIFFICULTIES.normal;
+-            // v11: consume per-run boosts
+-            const cons = consumables();
+-            state.runCoinBoost = 0.2 * (cons.lucky || 0);
+-            const freeCards = cons.headstart || 0;
+-            const useOvercharge = (cons.overcharge || 0) > 0; // v26
+-            const useAegis = (cons.aegis || 0) > 0;           // v26
+-            cons.lucky = 0; cons.headstart = 0;
+-            if (useOvercharge) cons.overcharge--;
+-            if (useAegis) cons.aegis--;
+-            try { saveGame(); } catch (e) {}
+-            if (mode === 'levels') state.levelsCfg.density = (opts && opts.density) || 10;
+             const resume = mode === 'casual' && (opts && opts.resume);
++            // v11: consume per-run boosts — v27.4 (fix): a RESUME must not re-consume or wipe
++            // consumables; the boosts captured in the snapshot are restored in the resume
++            // block below instead. (Loading a save used to silently eat Overcharge/Aegis.)
++            let runCoinBoostNew = 0, freeCards = 0, useOvercharge = false, useAegis = false;
++            if (!resume) {
++                const cons = consumables();
++                runCoinBoostNew = 0.2 * (cons.lucky || 0);
++                freeCards = cons.headstart || 0;
++                useOvercharge = (cons.overcharge || 0) > 0; // v26
++                useAegis = (cons.aegis || 0) > 0;           // v26
++                cons.lucky = 0; cons.headstart = 0;
++                if (useOvercharge) cons.overcharge--;
++                if (useAegis) cons.aegis--;
++                try { saveGame(); } catch (e) {}
++            }
++            state.runCoinBoost = runCoinBoostNew;
++            if (mode === 'levels') state.levelsCfg.density = (opts && opts.density) || 10;
+             state.score = resume ? opts.resume.score : 0;
+             state.kills = resume ? opts.resume.kills : 0; // v2: run stats
+             state.runTime = resume ? opts.resume.runTime : 0;
+@@ -4111,6 +4142,12 @@
+                 player.hp = opts.resume.hp;
+                 player.mesh.position.set(opts.resume.x, 0, opts.resume.z);
+                 loadBiome(opts.resume.biome);
++                // v27.4 (fix): restore the boosts that were live when the run was saved
++                state.runCoinBoost = opts.resume.coinBoost || 0;
++                state.overchargeUntil = (opts.resume.overchargeLeft || 0) > 0 ? state.runTime + opts.resume.overchargeLeft : 0;
++                state.shieldUp = !!opts.resume.shieldUp;
++                state.shieldReadyAt = opts.resume.shieldReadyAt || 0;
++                if (state.shieldUp) player.shieldRing.visible = true;
+             } else {
+                 loadBiome(Math.floor((state.level - 1) / 3)); // levels mode may start deeper
+             }
+@@ -4164,7 +4201,7 @@
+             const notif = document.getElementById('upgrade-notification');
+             document.getElementById('upgrade-text').textContent = text;
+             notif.classList.add('show');
+-            setTimeout(() => notif.classList.remove('show'), 2500);
++            setTimeout(() => notif.classList.remove('show'), 1400); // v27.4 (owner): shorter, less distracting
+         }
+ 
+         function showEnemyIntro(type) {
+@@ -4176,7 +4213,7 @@
+             document.getElementById('enemy-desc').textContent = data.desc;
+             const intro = document.getElementById('enemy-intro');
+             intro.classList.add('show');
+-            setTimeout(() => intro.classList.remove('show'), 3000);
++            setTimeout(() => intro.classList.remove('show'), 1800); // v27.4 (owner): shorter, less distracting
+         }
+ 
+         function spawnEnemy() {
+@@ -4838,8 +4875,8 @@
+                     state.shieldUp = true;
+                     showUpgradeNotification('🛡️ Shield ready');
+                 }
+-                if (player.shieldRing) player.shieldRing.visible = !!state.shieldUp;
+-            } else if (player.shieldRing) player.shieldRing.visible = false;
++            }
++            if (player.shieldRing) player.shieldRing.visible = !!state.shieldUp; // v27.4 (fix): the Aegis Kit shield shows its ring even without the Shield Generator card
+ 
+             // v17: stream the infinite world around the player
+             repositionGroundTiles(BIOMES[state.currentBiome], player.mesh.position.x, player.mesh.position.z);
