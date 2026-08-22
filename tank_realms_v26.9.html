@@ -892,7 +892,7 @@
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">v26.8</div>
+        <div class="version-tag" id="version-tag">v26.9</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -923,8 +923,6 @@
         <div class="settings-panel" style="width: min(94vw, 500px);">
             <div class="settings-title">🏆 Awards</div>
             <div class="settings-subtitle" id="awards-sub"></div>
-            <div class="cfg-label">📅 Daily challenges <span id="daily-date" style="text-transform:none;letter-spacing:0;font-weight:500;"></span></div>
-            <div id="daily-list"></div>
             <div class="cfg-label">🎖️ Achievements</div>
             <div id="ach-list" style="max-height: 34vh; overflow-y: auto;"></div>
             <button class="hud-icon-btn wide" id="btn-awards-back" style="margin-top: 12px; width: 100%;">Back</button>
@@ -3759,32 +3757,8 @@
             { id:'nightHunter', icon:'😈', name:'Nightmare Hunter',desc:'Defeat a boss on Nightmare',     goal:1,    stat:'bossNightmare', reward:1000 },
             { id:'collector', icon:'🎨', name:'Collector',         desc:'Own 3 tank skins',               goal:3,    stat:'skins',      reward:600 },
         ];
-        const DAILY_POOL = [
-            { id:'d_kills25', icon:'🎯', name:'Destroy 25 enemies',      stat:'kills',      goal:25,  reward:300 },
-            { id:'d_kills60', icon:'💥', name:'Destroy 60 enemies',      stat:'kills',      goal:60,  reward:500 },
-            { id:'d_crit15',  icon:'⚡', name:'Land 15 critical hits',   stat:'crits',      goal:15,  reward:300 },
-            { id:'d_dest10',  icon:'🪓', name:'Destroy 10 cover objects',stat:'destroyed',  goal:10,  reward:250 },
-            { id:'d_boss1',   icon:'👑', name:'Defeat a boss',           stat:'bossKills',  goal:1,   reward:400 },
-            { id:'d_lvl10',   icon:'🌟', name:'Reach level 10',          stat:'maxLevel',   goal:10,  reward:300 },
-            { id:'d_lvl15',   icon:'🔥', name:'Reach level 15',          stat:'maxLevel',   goal:15,  reward:450 },
-            { id:'d_coins800',icon:'💰', name:'Earn 800 coins in one run',stat:'runCoinsBest', goal:800, reward:350 },
-            { id:'d_dist400', icon:'🧭', name:'Travel 400 units in one run', stat:'runDistBest', goal:400, reward:250 },
-        ];
         const lifeStats = () => state.stats || (state.stats = { kills:0, bossKills:0, crits:0, destroyed:0, distance:0, coinsEarned:0, maxLevel:1, maxCombo:0, playTime:0, bossNightmare:0, skins:1, runs:0 });
-        const dailyState = () => {
-            const today = new Date().toISOString().slice(0, 10);
-            if (!state.daily || state.daily.date !== today) {
-                // seed 3 challenges from the pool by date
-                const seed = parseInt(today.replace(/-/g, ''), 10);
-                let s = seed >>> 0;
-                const rnd = () => { s |= 0; s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-                const pool = [...DAILY_POOL];
-                const picks = [];
-                while (picks.length < 3 && pool.length) picks.push(pool.splice(Math.floor(rnd() * pool.length), 1)[0]);
-                state.daily = { date: today, picks: picks.map(p => p.id), progress: {}, done: [] };
-            }
-            return state.daily;
-        };
+        const dailyState = () => ({ date: '', picks: [], progress: {}, done: [] }); // v26.9: dailies removed
         // v25: first-run tutorial tips — contextual, once each, persisted
         function tutorialTip(id, text, ms) {
             if ((state.tutorialTips || {})[id]) return;
@@ -3830,26 +3804,7 @@
                 }
             }
         }
-        function bumpDaily(stat, value) { // v23: daily aggregate counters (best-values pass value; sums pass delta)
-            const d = dailyState();
-            if (d.done.length >= 3) return;
-            if (stat === 'runCoinsBest' || stat === 'runDistBest' || stat === 'maxLevel') {
-                d.progress[stat] = Math.max(d.progress[stat] || 0, value);
-            } else {
-                d.progress[stat] = (d.progress[stat] || 0) + value;
-            }
-            for (const p of d.picks) {
-                const def = DAILY_POOL.find(x => x.id === p);
-                if (!def || d.done.includes(p)) continue;
-                if ((d.progress[def.stat] || 0) >= def.goal) {
-                    d.done.push(p);
-                    state.coins = (state.coins || 0) + def.reward;
-                    SFX.achievement(); SFX.coin();
-                    gameToast('📅 <b>' + def.name + '</b> complete! &nbsp;<span class="t-reward">+' + def.reward + ' 💰</span>');
-                    try { saveGame(); } catch (e) {}
-                }
-            }
-        }
+        function bumpDaily(stat, value) { /* v26.9: daily challenges removed */ }
         function trackKill(isBoss, isCrit, payout) { // v23
             const st = lifeStats();
             st.kills++; st.coinsEarned += payout;
@@ -3862,24 +3817,8 @@
             bumpDaily('runCoinsBest', state.runCoins || 0);
             checkAchievements();
         }
-        function renderAwards() { // v23
-            const d = dailyState();
+        function renderAwards() { // v23 / v26.9: achievements only
             const st = lifeStats();
-            document.getElementById('daily-date').textContent = '· resets daily';
-            const dl = document.getElementById('daily-list');
-            dl.innerHTML = '';
-            for (const p of d.picks) {
-                const def = DAILY_POOL.find(x => x.id === p);
-                const prog = Math.min(def.goal, d.progress[def.stat] || 0);
-                const done = d.done.includes(p);
-                const row = document.createElement('div');
-                row.className = 'award-row' + (done ? '' : ' locked');
-                row.innerHTML = '<div class="aw-icon">' + def.icon + '</div><div class="aw-body"><div class="aw-name">' + def.name +
-                    '</div><div class="aw-bar"><div style="width:' + Math.round(prog / def.goal * 100) + '%"></div></div>' +
-                    '<div class="aw-desc">' + prog + ' / ' + def.goal + '</div></div>' +
-                    (done ? '<div class="aw-done">✓ DONE</div>' : '<div class="aw-reward">+' + def.reward + ' 💰</div>');
-                dl.appendChild(row);
-            }
             const unlocked = state.achUnlocked || [];
             const al = document.getElementById('ach-list');
             al.innerHTML = '';
@@ -3895,7 +3834,7 @@
                 al.appendChild(row);
             }
             const achDone = unlocked.length;
-            document.getElementById('awards-sub').textContent = achDone + '/' + ACHIEVEMENTS.length + ' achievements · ' + (d.picks.length - d.done.length) + ' dailies left today';
+            document.getElementById('awards-sub').textContent = achDone + '/' + ACHIEVEMENTS.length + ' achievements';
         }
 
         function updateHomeStats() { // v7+v13: home screen bests/coins
@@ -5609,7 +5548,6 @@
 
         document.getElementById('btn-awards').addEventListener('click', (e) => { // v23
             e.stopPropagation();
-            dailyState();
             renderAwards();
             setScreenVisibility('start-screen', false);
             setScreenVisibility('awards-screen', true);
@@ -5650,7 +5588,7 @@
         });
 
         document.getElementById('start-screen').classList.remove('hidden');
-        dailyState(); lifeStats(); // v23
+        lifeStats(); // v23
         updateHomeStats(); // v7
         if (!store.persistent) { // v14: be honest about sandboxed previews
             const warn = document.createElement('div');
