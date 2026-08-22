@@ -892,7 +892,7 @@
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">v26.9</div>
+        <div class="version-tag" id="version-tag">v27</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -965,6 +965,7 @@
         </div>
         <div id="new-best-badge" class="hidden">★ NEW BEST! ★</div>
         <button class="btn btn-restart" id="btn-restart">Try Again</button>
+        <button class="btn" id="btn-continue-run" style="background: linear-gradient(135deg, #f59e0b 0%, #b45309 100%); box-shadow: 0 10px 40px rgba(245,158,11,0.45);">✨ Continue · 💰 <span id="continue-cost">800</span></button>
         <button class="btn" id="btn-go-home" style="background: linear-gradient(135deg, #64748b 0%, #334155 100%); box-shadow: 0 10px 40px rgba(51,65,85,0.4);">⌂ Back to Home</button>
         <button class="btn" id="btn-shop" style="background: linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%); box-shadow: 0 10px 40px rgba(14,165,233,0.4);">🛒 Armory &nbsp;·&nbsp; 💰 <span id="shop-coins-go">0</span></button>
     </div>
@@ -972,7 +973,7 @@
     <div id="shop-screen" class="screen hidden">
         <div class="settings-panel" style="width: min(94vw, 480px);">
             <div class="settings-title">🛒 Armory</div>
-            <div class="settings-subtitle">Permanent upgrades — spend coins, keep them forever · Balance: 💰 <span id="shop-coins">0</span></div>
+            <div class="settings-subtitle">Spend coins here — endless tracks get expensive fast · Balance: 💰 <span id="shop-coins">0</span></div>
             <div id="shop-items"></div>
             <button class="hud-icon-btn wide" id="btn-shop-close" style="margin-top: 14px; width: 100%;">Close</button>
         </div>
@@ -3066,7 +3067,11 @@
                     state.bossCooldownUntil = (state.runTime || 0) + 12;
                     try { updateBossBar(); } catch (err) {}
                 }
-                if (this.isPlayer) SFX.engineStop(); // v23
+                if (this.isPlayer) {
+                    state.continueX = this.mesh.position.x;
+                    state.continueZ = this.mesh.position.z;
+                    SFX.engineStop();
+                }
                 createExplosion(this.mesh.position, this.isPlayer ? 10 : 4, 0xff6600, 'spark');
                 scene.remove(this.mesh);
                 disposeObject3D(this.mesh); // FIX (Tier 2): free ~20 geometries + materials per tank
@@ -3714,8 +3719,12 @@
             { id:'revive', icon:'✨', name:'Second Wind',        desc:'Revive once/run — lvl2 revives at 75% HP', base:1500, growth:4.0, max:2 },
             { id:'cards',  icon:'🃏', name:'Extra Choice',       desc:'+1 level-up card choice (per level)', base:2500, growth:3.2, max:2 },
             // v26: endless coin sinks — these never max out
-            { id:'dmg_inf', icon:'🔧', name:'Master Gunsmith',   desc:'+1% base damage (per level, UNLIMITED)',   base:400, growth:1.18, max:Infinity },
-            { id:'hp_inf',  icon:'🧱', name:'Reinforced Alloy',  desc:'+2 starting Max HP (per level, UNLIMITED)', base:350, growth:1.16, max:Infinity },
+            { id:'dmg_inf', icon:'🔧', name:'Master Gunsmith',   desc:'+1% base damage (UNLIMITED — price rises fast)',   base:500, growth:1.34, max:Infinity },
+            { id:'hp_inf',  icon:'🧱', name:'Reinforced Alloy',  desc:'+2 starting Max HP (UNLIMITED — price rises fast)', base:450, growth:1.32, max:Infinity },
+            { id:'armor_inf', icon:'🪨', name:'Layered Plate',   desc:'+1 starting armor (UNLIMITED — price rises fast)',  base:600, growth:1.38, max:Infinity },
+            { id:'regen_inf', icon:'💚', name:'Nano Forge',      desc:'+0.5 HP/s regen (UNLIMITED — price rises fast)',    base:700, growth:1.40, max:Infinity },
+            { id:'fire_inf',  icon:'🔥', name:'Autoloader',      desc:'+2% fire rate (UNLIMITED — price rises fast)',      base:550, growth:1.36, max:Infinity },
+            { id:'crit_inf',  icon:'🎯', name:'Lucky Optics',    desc:'+1% crit chance (UNLIMITED — price rises fast)',    base:650, growth:1.40, max:Infinity },
         ];
         const SKINS = [
             { id:'amber',   name:'Amber Strike',  color:0xf59e0b, cost:0 },
@@ -3725,13 +3734,12 @@
             { id:'void',    name:'Void Walker',   color:0x8b5cf6, cost:7500 },
             { id:'gold',    name:'24k Commander', color:0xfcd34d, cost:12000 },
         ];
-        const CONSUMABLES = [ // v11: repeatable purchases — consumed by the next run, never max out
-            { id:'lucky',    icon:'🍀', name:'Lucky Charm',    desc:'+20% coins for your next run',        base:300, max:8 },
-            { id:'headstart',icon:'🚀', name:'Head Start',     desc:'Next run begins with +1 free upgrade card', base:450, max:5 },
-            // v26
-            { id:'reroll',    icon:'🎲', name:'Card Reroll',   desc:'Reroll a level-up card choice (next run)', base:600, max:3 },
-            { id:'overcharge',icon:'⚡', name:'Overcharge',    desc:'Next run: +30% damage for the first 60s',  base:500, max:3 },
-            { id:'aegis',     icon:'🛡️', name:'Aegis Kit',     desc:'Next run: start with a charged shield',    base:500, max:3 },
+        const CONSUMABLES = [ // v27: next-run boosts — unlimited, each extra copy costs more
+            { id:'lucky',     icon:'🍀', name:'Lucky Charm',  desc:'+20% coins next run',                 base:400, growth:1.55 },
+            { id:'headstart', icon:'🚀', name:'Head Start',   desc:'Next run starts with +1 free card',   base:550, growth:1.6 },
+            { id:'reroll',    icon:'🎲', name:'Card Reroll',  desc:'Reroll a level-up hand (next run)',   base:700, growth:1.55 },
+            { id:'overcharge',icon:'⚡', name:'Overcharge',   desc:'Next run: +30% damage for 60s',       base:600, growth:1.58 },
+            { id:'aegis',     icon:'🛡️', name:'Aegis Kit',    desc:'Next run: start with a charged shield', base:600, growth:1.58 },
         ];
         const consumables = () => state.consumables || (state.consumables = { lucky: 0, headstart: 0, reroll: 0, overcharge: 0, aegis: 0 });
         const shopCost = (item) => Math.round(item.base * Math.pow(item.growth || 1.5, ((state.meta || {})[item.id] || 0)));
@@ -3969,15 +3977,15 @@
                 row.innerHTML = '<div class="si-icon">' + con.icon + '</div>' +
                     '<div class="si-body"><div class="si-name">' + con.name + ' <span style="color:#fbbf24">×' + owned + '</span></div>' +
                     '<div class="si-desc">' + con.desc + '</div>' +
-                    '<div class="si-pips">stacks up to ×' + con.max + '</div></div>';
+                    '<div class="si-pips">owned ×' + owned + ' · next costs more</div></div>';
                 const btn = document.createElement('button');
-                if (owned >= con.max) { btn.textContent = 'MAX'; btn.disabled = true; }
-                else {
-                    btn.textContent = '💰 ' + con.base.toLocaleString();
-                    btn.disabled = (state.coins || 0) < con.base;
+                const ccost = Math.round((con.base || 400) * Math.pow(con.growth || 1.55, owned));
+                {
+                    btn.textContent = '💰 ' + ccost.toLocaleString();
+                    btn.disabled = (state.coins || 0) < ccost;
                     btn.onclick = () => {
-                        if ((state.coins || 0) < con.base) return;
-                        state.coins -= con.base;
+                        if ((state.coins || 0) < ccost) return;
+                        state.coins -= ccost;
                         consumables()[con.id] = owned + 1;
                         try { saveGame(); } catch (e) {}
                         playUISound(); renderShop();
@@ -4047,7 +4055,8 @@
                 lastMissileAt: state.lastMissileAt || 0,
                 combo: state.combo || 0,
                 bossCount: state.bossCount || 0,
-                enemiesIntroduced: [...(state.enemiesIntroduced || [])]
+                enemiesIntroduced: [...(state.enemiesIntroduced || [])],
+                continuesThisRun: state.continuesThisRun || 0
             };
         }
 
@@ -4147,8 +4156,13 @@
                 state.playerStats.regen += (meta.regen || 0) * 1;
                 state.playerStats.damage += (meta.dmg_inf || 0) * 1;
                 state.playerStats.maxHp += (meta.hp_inf || 0) * 2;
+                state.playerStats.armor += (meta.armor_inf || 0) * 1;
+                state.playerStats.regen += (meta.regen_inf || 0) * 0.5;
+                state.playerStats.fireRate += (meta.fire_inf || 0) * 2;
+                state.playerStats.crit += (meta.crit_inf || 0) * 1;
             }
             state.reviveAvailable = (meta.revive || 0) > 0;
+            if (!resume) state.continuesThisRun = 0;
             state.surgeActive = false;
             state.surgeNextAt = state.runTime + 70;
             state.surgeEndsAt = 0; state.surgeLastSpawn = 0;
@@ -4159,6 +4173,7 @@
                 state.runCoinBoost = opts.resume.runCoinBoost || 0;
                 state.combo = opts.resume.combo || 0;
                 if (opts.resume.enemiesIntroduced) state.enemiesIntroduced = new Set(opts.resume.enemiesIntroduced);
+                state.continuesThisRun = opts.resume.continuesThisRun || 0;
             } else {
                 state.biomeStep = Math.floor((state.level - 1) / 3);
                 state.biomeNextIn = 1 + Math.floor(Math.random() * 3);
@@ -5251,10 +5266,58 @@
             document.getElementById('final-best').textContent = best;
             document.getElementById('new-best-badge').classList.toggle('hidden', !isBest);
             document.getElementById('game-over-screen').classList.remove('hidden');
+            const cBtn = document.getElementById('btn-continue-run');
+            const cCost = continueCost();
+            if (cBtn) {
+                const el = document.getElementById('continue-cost');
+                if (el) el.textContent = cCost.toLocaleString();
+                cBtn.disabled = (state.coins || 0) < cCost;
+                cBtn.style.opacity = cBtn.disabled ? '0.45' : '1';
+            }
             
             state.input = { x: 0, y: 0, isFiring: false };
             document.getElementById('joystick-base').style.display = 'none';
             syncHUDControls();
+        }
+
+        function continueCost() {
+            return Math.round(800 * Math.pow(5, state.continuesThisRun || 0));
+        }
+        function buyContinue() { // v27: pay coins on the death screen to keep THIS run
+            if (state.gamePhase !== 'gameover' || !state.playerStats) return;
+            const cost = continueCost();
+            if ((state.coins || 0) < cost) {
+                showUpgradeNotification('Not enough coins');
+                return;
+            }
+            state.coins -= cost;
+            state.continuesThisRun = (state.continuesThisRun || 0) + 1;
+            try { saveGame(); } catch (e) {}
+            const x = state.continueX || 0, z = state.continueZ || 0;
+            if (player) {
+                try { scene.remove(player.mesh); disposeObject3D(player.mesh); } catch (e) {}
+            }
+            player = new Tank(selectedSkinColor(), true);
+            const sRingGeo = new THREE.RingGeometry(3.1, 3.4, 40);
+            const sRingMat = new THREE.MeshBasicMaterial({ color: 0x60a5fa, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
+            player.shieldRing = new THREE.Mesh(sRingGeo, sRingMat);
+            player.shieldRing.rotation.x = -Math.PI / 2;
+            player.shieldRing.position.y = 1.2;
+            player.shieldRing.visible = false;
+            player.mesh.add(player.shieldRing);
+            player.maxHp = state.playerStats.maxHp;
+            player.hp = Math.ceil(player.maxHp * 0.5);
+            player.mesh.position.set(x, 0, z);
+            state.invulnUntil = clock.getElapsedTime() + 3;
+            state.shieldUp = false;
+            state.isPlaying = true;
+            state.gamePhase = 'playing';
+            setScreenVisibility('game-over-screen', false);
+            setPauseUIVisible(true);
+            SFX.revive(); SFX.engineStart(); SFX.musicStart();
+            showUpgradeNotification('✨ Continued — 50% HP, 3s safe');
+            updateHUD();
+            needsRender = true;
         }
 
         function onWindowResize() {
@@ -5456,6 +5519,10 @@
             closeSaveDialog();
         });
 
+        document.getElementById('btn-continue-run').addEventListener('click', (e) => {
+            e.stopPropagation();
+            buyContinue();
+        });
         document.getElementById('btn-restart').addEventListener('click', (e) => {
             e.stopPropagation();
             startGame(state.mode || 'casual', state.mode === 'levels'
