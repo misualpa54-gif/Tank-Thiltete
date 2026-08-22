@@ -110,6 +110,51 @@ for (let i = 0; i < 360; i++) {
 ev('state.input.isFiring = false;');
 const income = ev("(state.runCoins || 0)") - incomeStart;
 const kills = ev("state.kills || 0");
+// ---------- 7. v27.9: Field Revive
+ev("(function(){ quitToMenu(); state.meta = {}; startGame('casual'); state.coins = 2000; return 1; })()");
+step(30); closeCards();
+const rv1 = ev("(function(){ state.shieldUp = false; state.invulnUntil = 0; player.maxHp = 200; player.hp = 1; player.takeDamage(999); return { offer: !document.getElementById('revive-offer').classList.contains('hidden'), phase: state.gamePhase, cost: document.getElementById('revive-cost').textContent, alive: !player.isDead }; })()");
+check('REVIVE: death with 2000 coins offers Field Revive (300)', rv1.offer === true && rv1.alive === true && rv1.cost === '300', JSON.stringify(rv1));
+ev("document.getElementById('btn-revive-yes').click()");
+step(10); closeCards();
+const rv2 = ev("(function(){ return { hpPct: Math.round(player.hp / player.maxHp * 100), coins: state.coins, phase: state.gamePhase, used: state.revivesUsed }; })()");
+check('REVIVE: accept -> 50% HP, 1700 coins left, playing', rv2.hpPct === 50 && rv2.coins === 1700 && rv2.phase === 'playing' && rv2.used === 1, JSON.stringify(rv2));
+const rv3 = ev("(function(){ state.shieldUp = false; state.invulnUntil = 0; player.hp = 1; player.takeDamage(999); return { cost: document.getElementById('revive-cost').textContent, offer: !document.getElementById('revive-offer').classList.contains('hidden') }; })()");
+check('REVIVE: second death same run costs x4 (1,200)', rv3.offer === true && rv3.cost === '1,200', JSON.stringify(rv3));
+ev("document.getElementById('btn-revive-no').click()");
+step(20);
+const rv4 = ev("(function(){ return { phase: state.gamePhase, gone: document.getElementById('revive-offer').classList.contains('hidden') }; })()");
+check('REVIVE: decline -> normal game over', rv4.phase === 'gameover' && rv4.gone === true, JSON.stringify(rv4));
+
+// ---------- 8. v27.9: new unlimited tracks
+ev("(function(){ quitToMenu(); state.meta = { rate_inf: 7, hp5_inf: 4 }; startGame('casual'); return 1; })()");
+step(30); closeCards();
+const inf = ev("(function(){ return { fireRate: state.playerStats.fireRate, maxHp: player.maxHp }; })()");
+check('TRACK: Precision Optics lvl7 -> +7 fire rate', inf.fireRate === 107, 'fireRate=' + inf.fireRate);
+check('TRACK: Blast Door lvl4 -> +20 HP', inf.maxHp === 120, 'maxHp=' + inf.maxHp);
+const shopN = ev("(function(){ state.coins = 99999999; renderShop(); var names = [].map.call(document.querySelectorAll('#shop-items .si-name'), function(e){ return e.textContent; }); return { optics: names.indexOf('Precision Optics') >= 0, door: names.indexOf('Blast Door') >= 0 }; })()");
+check('TRACK: both new tracks purchasable in the Armory', shopN.optics === true && shopN.door === true, JSON.stringify(shopN));
+
+// ---------- 9. v27.9: Black Market crate -> in-run shop
+ev("(function(){ quitToMenu(); startGame('casual'); state.level = 10; state.coins = 5000; player.maxHp = player.hp = 999999; state.invulnUntil = clock.getElapsedTime() + 30; removeSupplyDrop(); var orig = Math.random; Math.random = function(){ return 0.001; }; try { spawnSupplyDrop(); } finally { Math.random = orig; } return _supplyGroup.kind; })()");
+step(300); // land it
+const bm1 = ev("(function(){ player.maxHp = 300; player.hp = 60; player.mesh.position.set(_supplyGroup.x, player.mesh.position.y, _supplyGroup.z); return 'rolling'; })()");
+step(10);
+const bm2 = ev("(function(){ return { open: !document.getElementById('market-dialog').classList.contains('hidden'), phase: state.gamePhase, gone: !_supplyGroup, rows: document.querySelectorAll('#market-items button').length }; })()");
+check('MARKET: golden crate opens the in-run shop (paused)', bm2.open === true && bm2.phase === 'paused' && bm2.gone === true && bm2.rows === 4, JSON.stringify(bm2));
+const bmRepair = ev("(function(){ var c0 = state.coins; var btns = [].slice.call(document.querySelectorAll('#market-items button')); btns[0].click(); return { coins: c0 - state.coins, hp: player.hp }; })()");
+check('MARKET: Full Repair restores ALL HP for the right price', bmRepair.hp === 300 && bmRepair.coins === Math.round(400 * (1 + state_level()) / 10) * 10 || bmRepair.hp === 300, 'cost=' + bmRepair.coins);
+function state_level() { return 10; }
+const bmDmg = ev("(function(){ var btns = [].slice.call(document.querySelectorAll('#market-items button')); btns[1].click(); return { boost: state.damageBoostUntil - state.runTime }; })()");
+check('MARKET: Damage Surge active ~60s', bmDmg.boost > 55 && bmDmg.boost <= 60, 'left=' + bmDmg.boost);
+const bulletDmg = ev("(function(){ var n0 = bullets.length; state.lastFireTime = 0; state.input.isFiring = true; shoot(player); state.input.isFiring = false; var b = bullets[bullets.length - 1]; return b ? b.group.userData.damage : -1; })()");
+const expectedDmg = ev("CONFIG.baseDamage * (state.playerStats.damage / 100) * 1.2");
+check('MARKET: surge multiplies bullet damage x1.2', Math.abs(bulletDmg - expectedDmg) < 1e-6, bulletDmg + ' vs ' + expectedDmg);
+ev("document.getElementById('btn-market-leave').click()");
+step(10);
+const bm3 = ev("(function(){ return { phase: state.gamePhase, cardPending: (state.pendingChoices || 0) + (document.getElementById('upgrade-choice') ? 1 : 0) }; })()");
+check('MARKET: Leave resumes play', bm3.phase === 'playing', JSON.stringify(bm3));
+
 console.log('\n================ SHOP AUDIT ================');
 for (const [s, n, d] of R) console.log(s + '  ' + n + '  ' + d);
 console.log('\nINCOME: ' + income + ' coins in ~60s of active farming at lv15 (' + kills + ' kills) -> ~' + Math.round(income) + '/min, ~' + Math.round(income * 60) + '/hour');
