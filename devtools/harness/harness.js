@@ -301,7 +301,7 @@ closeCards();
 
 // ---------------------------------------------------------------- 8. regen + healOnKill
 quietBoard();
-ev("(function(){ state.playerStats.regen = 5; state.playerStats.healOnKill = 0; player.hp = 999000; state.lastRegenTime = clock.getElapsedTime(); })()");
+ev("(function(){ state.playerStats.regen = 5; state.playerStats.healOnKill = 0; player.hp = 999000; state.invulnUntil = clock.getElapsedTime() + 10; state.lastRegenTime = clock.getElapsedTime(); })()");
 step(150);
 check('Repair Kit regen heals over time (+5/s)', ev('player.hp') >= 999005 && ev('player.hp') <= 999020, 'hp -> ' + ev('player.hp'));
 quietBoard();

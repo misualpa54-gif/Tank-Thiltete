@@ -1,0 +1,26 @@
+diff --git a/tank_realms_latest.html b/tank_realms_latest.html
+index f38c1cc..bf7c9d2 100644
+--- a/tank_realms_latest.html
++++ b/tank_realms_latest.html
+@@ -4091,6 +4091,8 @@
+             state.surgeActive = false;
+             state.supplyNextAt = state.runTime + 35; // v27.6: first supply drop ~35s in (lv4+)
+             state.rapidFireUntil = 0;
++            state.invulnUntil = 0; // v27.8 (audit): Second Wind's 2s invulnerability leaked into the next run
++            state.speedBoostUntil = 0;
+             state.surgeNextAt = state.runTime + 50;
+             state.surgeEndsAt = 0; state.surgeLastSpawn = 0;
+             // v26: biome rotation cadence
+@@ -4136,6 +4138,12 @@
+                 loadBiome(Math.floor((state.level - 1) / 3)); // levels mode may start deeper
+             }
+             updateHUD();
++            // v27.8 (audit): Head Start cards now open IMMEDIATELY at run start — they used
++            // to queue silently until the first level-up, which is not "begins with".
++            if ((state.pendingChoices || 0) > 0 && !state.isChoosingUpgrade && !resume) {
++                state.pendingChoices--;
++                showUpgradeChoices();
++            }
+ 
+             document.getElementById('start-screen').classList.add('hidden');
+             setScreenVisibility('game-over-screen', false);
