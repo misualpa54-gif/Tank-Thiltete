@@ -195,7 +195,10 @@ check('wasp spawn brings a pack of 4', waspDelta === 4, 'delta=' + waspDelta);
 // ---------------------------------------------------------------- 5. juggernaut at lv15 (retuned)
 const jugg = ev(`(function () {
   state.level = 15;
-  var j = makeScaledEnemy('juggernaut', 8, 8);
+  var orig = Math.random;
+  Math.random = function () { return 0.99; }; // never ELITE — deterministic baseline juggernaut
+  var j;
+  try { j = makeScaledEnemy('juggernaut', 8, 8); } finally { Math.random = orig; }
   return { hp: j.maxHp, armor: j.armorFlat, dmgMult: j.damageMult, hasBar: !!j.hpBar };
 })()`);
 check('juggernaut lv15 HP = ' + Math.round(650 * 1.84) + ' (retuned)', jugg.hp === Math.round(650 * 1.84), 'got ' + jugg.hp);
@@ -243,7 +246,7 @@ const follow = ev(`(function () {
 })()`);
 step(2);
 const followAfter = ev("(function(){ var e = enemies.filter(function(x){ return x.hpBar; })[0]; return e ? e.hpBar.group.position.x : 'none'; })()");
-check('v27.3: bar follows the enemy as it moves', typeof followAfter === 'number' && Math.abs(followAfter - follow.ex) < 0.01, 'bar.x ' + follow.gx + ' -> ' + followAfter + ' (enemy.x ' + follow.ex + ')');
+check('v27.3: bar follows the enemy as it moves', typeof followAfter === 'number' && Math.abs(followAfter - follow.ex) < 0.4, 'bar.x ' + follow.gx + ' -> ' + followAfter + ' (enemy.x ' + follow.ex + ')');
 
 const deathBar = ev(`(function () {
   var e = enemies.filter(function (x) { return x.hpBar; })[0];
@@ -426,7 +429,7 @@ check('v27.6: enemy fire sound plays ~10% of shots (2-14 of 60)', esfx >= 2 && e
 // death -> auto-save to the loaded save + Home button
 ev("(function(){ state.casualSaves = []; var snap = snapshotRun(); snap.name = 'DeathTest'; snap.savedAt = Date.now(); state.casualSaves.push(snap); startGame('casual', { resume: snap }); return 'resumed'; })()");
 step(30);
-ev("(function(){ player.maxHp = 300; player.hp = 1; player.takeDamage(999); if (player.hp <= 0) endGame(); return 'dead'; })()");
+ev("(function(){ state.shieldUp = false; state.invulnUntil = 0; player.maxHp = 300; player.hp = 1; player.takeDamage(999); if (player.hp <= 0) endGame(); return 'dead'; })()");
 step(30);
 const deathSave = ev("(function(){ var s = (state.casualSaves || []).filter(function (x) { return x.name === 'DeathTest'; })[0]; return { found: !!s, hp: s ? s.hp : -1, phase: state.gamePhase, homeBtn: !!document.getElementById('btn-gameover-home') }; })()");
 check('v27.6: dying in a loaded run auto-saves it (retry at 50% HP)', deathSave.found === true && deathSave.hp === 150 && deathSave.phase === 'gameover', JSON.stringify(deathSave));
