@@ -1324,7 +1324,7 @@
             runCoins: 0,
             xp: 0,
             level: 1,
-            xpToNext: 100,
+            xpToNext: 120, // v29: slower start
             currentBiome: 0,
             lastFireTime: 0,
             lastSpawnTime: 0,
@@ -2019,7 +2019,7 @@
                 const parts = k.split(',');
                 return { k, cx: +parts[0], cz: +parts[1], d: ((+parts[0]) * CHUNK - px) ** 2 + ((+parts[1]) * CHUNK - pz) ** 2 };
             }).sort((a, b) => a.d - b.d);
-            waveOrder.forEach(w => buildChunkTask(w.cx, w.cz, true)); // v22: whole wave queued at once (front keeps order)
+            waveOrder.forEach(w => buildChunkTask(w.cx, w.cz, true, true)); // v29 (owner): FORCE the rebuild — chunks now transform GRADUALLY through the morph (budget-drip, nearest first) instead of one pop at the end
             biomeBlend.rebuildQueue = []; // drained: tasks are tracked in chunkTasks now
             // announce the realm
             const biomeEl = document.getElementById('biome-name');
@@ -2086,7 +2086,11 @@
                     // is a rebuild: force one radial wave now, at the FINAL heights. The task
                     // system budget it (no hitch), and the double-buffer swap leaves no gap.
                     const px2 = player ? player.mesh.position.x : 0, pz2 = player ? player.mesh.position.z : 0;
+                    // v29 (owner): the transition must be slow and gradual. Chunks rebuilt EARLY in the
+                    // morph are the only ones that can still float — re-ground just those (usually a few),
+                    // instead of re-popping the entire landscape at once like v27.4 did.
                     [...envChunks.keys()]
+                        .filter(k => (envChunks.get(k).__blendAt || 1) < 0.9)
                         .map(k => { const p = k.split(','); return { cx: +p[0], cz: +p[1], d: ((+p[0]) * CHUNK - px2) ** 2 + ((+p[1]) * CHUNK - pz2) ** 2 }; })
                         .sort((a, c) => a.d - c.d)
                         .forEach(w => buildChunkTask(w.cx, w.cz, true, true));
@@ -2427,6 +2431,7 @@
                 c.buckets = task.buckets;
                 if (envChunks.has(c.key)) disposeEnvChunk(c.key); // double-buffer: swap, never a gap
                 for (const m of c.meshes) scene.add(m);
+                c.__blendAt = biomeBlend ? biomeBlend.e : 1; // v29: remember how far the ground had blended when this scenery landed
                 envChunks.set(c.key, c);
                 return true;
             }
@@ -3096,8 +3101,39 @@
         // ============================================
         // ENHANCED PROJECTILES - Glowing Plasma Bolts
         // ============================================
+        // v29 (owner): every enemy type now fires a DIFFERENT shot — color, speed,
+        // lifetime, size — and juggernaut + all bosses fire slow tracking shells
+        // that follow the player (no more bullets sailing over your head when
+        // you're on lower ground). 12% of regular enemies fire a light tracker too.
+        const ENEMY_BULLET_STYLES = {
+            scout:      { color: 0xffa94d, speed: 1.25, life: 0.9,  scale: 0.85, homing: 0    },
+            soldier:    { color: 0xff6b3d, speed: 1.0,  life: 1.2,  scale: 1.0,  homing: 0    },
+            heavy:      { color: 0xff4444, speed: 0.85, life: 1.5,  scale: 1.3,  homing: 0    },
+            sniper:     { color: 0xfaff00, speed: 1.6,  life: 1.8,  scale: 0.7,  homing: 0    },
+            gunner:     { color: 0xff8fab, speed: 1.1,  life: 1.1,  scale: 0.9,  homing: 0.5  },
+            berserker:  { color: 0xff5252, speed: 1.0,  life: 1.2,  scale: 1.0,  homing: 0    },
+            bomber:     { color: 0xffa29b, speed: 1.0,  life: 1.2,  scale: 1.0,  homing: 0    },
+            healer:     { color: 0x00ff00, speed: 1.0,  life: 1.2,  scale: 1.0,  homing: 0    },
+            phantom:    { color: 0xb0bec5, speed: 1.3,  life: 1.3,  scale: 0.9,  homing: 0    },
+            skirmisher: { color: 0x2dd4bf, speed: 1.15, life: 1.1,  scale: 0.9,  homing: 0    },
+            wasp:       { color: 0xfacc15, speed: 1.45, life: 0.8,  scale: 0.6,  homing: 0    },
+            juggernaut: { color: 0x60a5fa, speed: 0.6,  life: 2.6,  scale: 1.6,  homing: 2.4 },
+            warlord:    { color: 0xff3b3b, speed: 0.95, life: 1.6,  scale: 1.35, homing: 1.8 },
+            tempest:    { color: 0x38bdf8, speed: 1.05, life: 1.5,  scale: 1.2,  homing: 2.0 },
+            colossus:   { color: 0xffb020, speed: 0.85, life: 2.0,  scale: 1.5,  homing: 2.1 },
+            titan:      { color: 0x818cf8, speed: 0.75, life: 2.2,  scale: 1.7,  homing: 2.2 },
+            nova:       { color: 0xe879f9, speed: 1.0,  life: 1.8,  scale: 1.25, homing: 1.8 },
+            fortress:   { color: 0xfb7185, speed: 0.9,  life: 1.9,  scale: 1.4,  homing: 2.0 },
+        };
+        const _homingV = new THREE.Vector3();
         function spawnBullet(source, dir, damage) { // v6(C): one bullet along dir — shared by the player and boss attack patterns
-            const bulletColor = source.isPlayer ? 0x00ffff : (source.type === 'healer' ? 0x00ff00 : 0xff4444);
+            const style = source.isPlayer ? null : (ENEMY_BULLET_STYLES[source.type] || ENEMY_BULLET_STYLES.soldier);
+            const bulletColor = source.isPlayer ? 0x00ffff : style.color;
+            let homing = 0;
+            if (!source.isPlayer) {
+                homing = style.homing || 0;
+                if (!homing && !source.isBoss && Math.random() < 0.12) homing = 1.2; // v29: some random tanks fire trackers
+            }
 
             const bulletGroup = new THREE.Group();
             // FIX (Tier 2): bullet geometries/materials are cached & shared (no per-shot leak)
@@ -3119,13 +3155,15 @@
 
             const d = dir.clone().normalize();
             bulletGroup.lookAt(bulletGroup.position.clone().add(d));
+            if (style && style.scale) bulletGroup.scale.setScalar(style.scale); // v29: shot size varies by enemy
             bulletGroup.userData = {
-                vel: d.multiplyScalar(CONFIG.bulletSpeed),
+                vel: d.multiplyScalar(CONFIG.bulletSpeed * (source.isPlayer ? 1 : (style ? (style.speed || 1) : 1))),
                 isPlayer: source.isPlayer,
                 damage: source.isPlayer ? damage : damage * (state.diffMult.dmg || 1) * (source.damageMult || 1), // v10: difficulty + v26: level scaling
                 pierce: source.isPlayer ? (state.playerStats.pierce || 0) : 0,
                 hitList: [],
-                life: 1.2,
+                life: source.isPlayer ? 1.2 : (style ? (style.life || 1.2) : 1.2),
+                homing: homing, // v29: rad/s steering budget toward the player
                 color: bulletColor
             };
             scene.add(bulletGroup);
@@ -4018,7 +4056,7 @@
                         ? ('●'.repeat(lvl) + '○'.repeat(Math.max(0, item.max - lvl)) + ' level ' + lvl + '/' + item.max)
                         : ('●'.repeat(Math.min(lvl, 12)) + ' level ' + lvl + ' (∞)')) + '</div></div>';
                 const btn = document.createElement('button');
-                if (lvl >= item.max) { btn.textContent = 'MAX'; btn.disabled = true; }
+                if (lvl >= item.max || lvl >= 200) { btn.textContent = 'MAX'; btn.disabled = true; } // v29: 200-level ceiling on unlimited tracks
                 else {
                     btn.textContent = '💰 ' + cost;
                     btn.disabled = (state.coins || 0) < cost;
@@ -4137,7 +4175,7 @@
             state.runCoins = resume ? opts.resume.runCoins : 0;
             state.xp = resume ? opts.resume.xp : 0;
             state.level = resume ? opts.resume.level : ((mode === 'levels' && opts.startLevel) || 1);
-            state.xpToNext = resume ? opts.resume.xpToNext : 100;
+            state.xpToNext = resume ? opts.resume.xpToNext : 120; // v29: slower start
             // v13: named saves are managed in the Casual hub
             state.isPlaying = true;
             state.gamePhase = 'playing';
@@ -4237,7 +4275,7 @@
             while (state.xp >= state.xpToNext) {
                 state.xp -= state.xpToNext;
                 state.level++;
-                state.xpToNext = Math.floor(state.xpToNext * 1.4);
+                state.xpToNext = Math.floor(state.xpToNext * 1.5); // v29 (owner): card picks arrive slower — player was spiking too fast
 
                 // v4 (Upgrades-A): every level-up offers a 3-card choice (queues if one is open)
                 SFX.levelUp(); // v23
@@ -4603,7 +4641,7 @@
             // Health regen
             if (state.playerStats.regen > 0 && clock.getElapsedTime() - state.lastRegenTime > 1) {
                 if (player.hp < player.maxHp) {
-                    player.hp = Math.min(player.maxHp, player.hp + state.playerStats.regen);
+                    player.hp = Math.min(player.maxHp, player.hp + Math.min(state.playerStats.regen, 8)); // v29 (owner): regen caps at 8 HP/s — stacked shop+cards made players unkillable
                     dom('heal-overlay').style.opacity = '0.3'; // FIX (Tier 4)
                     setTimeout(() => dom('heal-overlay').style.opacity = '0', 200);
                     updateHUD();
@@ -4835,7 +4873,33 @@
                 // Terrain following for enemies that didn't move this frame (height/tilt upkeep)
                 if (!e._movedThisFrame) e.move(dt, _sv1.set(0, 0)); // FIX (Tier 3)
                 syncHpBar(e); // v27.3: keep the name/HP bar over the tank as it moves
+
+                // v29 (owner): tanks are SOLID — chargers (juggernaut/bomber/berserker) used to
+                // drive inside the player's hull and sit there overlapping. Push them out.
+                if (dist < 3.6) {
+                    const inv = dist > 0.001 ? 1 / dist : 0;
+                    const nx = dist > 0.001 ? toPlayer.x * inv : 1; // degenerate exact-overlap: push along +x
+                    const nz = dist > 0.001 ? toPlayer.z * inv : 0;
+                    e.mesh.position.x -= nx * (3.6 - dist);
+                    e.mesh.position.z -= nz * (3.6 - dist);
+                }
             });
+
+            // v29: soft enemy-vs-enemy separation (n<=~21, so this stays cheap)
+            for (let si = 0; si < enemies.length; si++) {
+                const a = enemies[si]; if (a.isDead) continue;
+                for (let sj = si + 1; sj < enemies.length; sj++) {
+                    const c = enemies[sj]; if (c.isDead) continue;
+                    const sdx = c.mesh.position.x - a.mesh.position.x, sdz = c.mesh.position.z - a.mesh.position.z;
+                    const sd2 = sdx * sdx + sdz * sdz, srs = 3.4;
+                    if (sd2 > 0.0001 && sd2 < srs * srs) {
+                        const sd = Math.sqrt(sd2), sp = (srs - sd) * 0.5;
+                        const snx = sdx / sd, snz = sdz / sd;
+                        a.mesh.position.x -= snx * sp; a.mesh.position.z -= snz * sp;
+                        c.mesh.position.x += snx * sp; c.mesh.position.z += snz * sp;
+                    }
+                }
+            }
 
             // v5: remove enemies that died outside the bullet path (kamikaze detonations)
             if (enemies.some(en => en.isDead)) enemies = enemies.filter(en => !en.isDead);
@@ -4843,6 +4907,18 @@
             // Bullets
             for (let i = bullets.length - 1; i >= 0; i--) {
                 const b = bullets[i];
+                // v29 (owner): homing shots steer toward the player (3D — fixes shots
+                // sailing over you on lower ground). Turn rate is capped so they can be dodged.
+                if (b.group.userData.homing && !b.group.userData.isPlayer && player && !player.isDead) {
+                    _homingV.subVectors(player.mesh.position, b.group.position);
+                    const hd = _homingV.length();
+                    if (hd > 0.5) {
+                        const spd = b.group.userData.vel.length() || 1;
+                        _homingV.multiplyScalar(1 / hd).multiplyScalar(spd);
+                        b.group.userData.vel.lerp(_homingV, Math.min(1, b.group.userData.homing * dt)).setLength(spd);
+                        b.group.lookAt(_homingV.copy(b.group.position).add(b.group.userData.vel));
+                    }
+                }
                 b.group.position.add(_tv1.copy(b.group.userData.vel).multiplyScalar(dt)); // FIX (Tier 3): no per-frame allocation
                 b.group.userData.life -= dt;
 
@@ -5849,7 +5925,7 @@ function showUpgradeChoices(){
     const overlay = document.createElement('div');
     overlay.id = 'upgrade-choice';
     overlay.innerHTML = '<div class="uc-title">🌟 LEVEL ' + state.level + '</div>' +
-                        '<div class="uc-subtitle">Choose an upgrade</div>' +
+                        '<div class="uc-subtitle">Choose an upgrade' + ((state.pendingChoices || 0) > 0 ? ' · +' + state.pendingChoices + ' more queued' : '') + '</div>' + // v29 (owner request)
                         '<div class="uc-cards"></div>';
     const cards = overlay.querySelector('.uc-cards');
     picks.forEach(up => {

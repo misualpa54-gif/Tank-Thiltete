@@ -525,6 +525,64 @@ const homeCoins2 = dom2win.document.getElementById('home-coins') ? dom2win.docum
 const seededCoins = dom2win.eval('(state.coins || 0).toLocaleString()');
 check('v28 B4: fresh boot shows SAVED coins on the home screen immediately', homeCoins2 === seededCoins && homeCoins2 !== '0', 'home shows ' + homeCoins2 + ' (state ' + seededCoins + '), errors=' + errs2.length);
 
+// ---------------------------------------------------------------- 19. v29: homing shots, styles, pacing, separation, regen cap, gradual morph
+const godd = () => ev("(function(){ if (player && !player.isDead) { player.maxHp = 999999; player.hp = 999999; } state.coins = 0; state.shieldUp = false; state.invulnUntil = 0; if (!document.getElementById('revive-offer').classList.contains('hidden')) { closeReviveOffer(); state.gamePhase = 'playing'; } var o = document.getElementById('upgrade-choice'); if (o) o.remove(); state.isChoosingUpgrade = false; state.pendingChoices = 0; return 1; })()");
+ev("(function(){ startGame('casual'); return 1; })()"); // v29 section runs IN-GAME (the walk + boot tests left the page at the menu)
+step(30);
+godd();
+quietBoard();
+godd();
+
+const st1 = ev("(function(){ var j = makeScaledEnemy('juggernaut', 30, 30); var n0 = bullets.length; state.lastFireTime = 0; shoot(j); var b = bullets[bullets.length - 1]; return { homing: b.group.userData.homing, life: b.group.userData.life, color: b.group.userData.color, scale: b.group.scale.x, speed: b.group.userData.vel.length() / CONFIG.bulletSpeed }; })()");
+check('v29: juggernaut fires a SLOW BIG BLUE tracking shell', st1.homing === 2.4 && st1.life === 2.6 && st1.color === 0x60a5fa && st1.scale === 1.6 && Math.abs(st1.speed - 0.6) < 0.01, JSON.stringify(st1));
+const st2 = ev("(function(){ var r0 = Math.random; Math.random = function(){ return 0.99; }; var s; try { s = makeScaledEnemy('sniper', 32, 32); state.lastFireTime = 0; shoot(s); } finally { Math.random = r0; } var b = bullets[bullets.length - 1]; return { color: b.group.userData.color, life: b.group.userData.life, scale: b.group.scale.x, homing: b.group.userData.homing, speed: b.group.userData.vel.length() / CONFIG.bulletSpeed }; })()");
+check('v29: sniper shots are fast thin yellow darts (distinct style)', st2.color === 0xfaff00 && st2.life === 1.8 && st2.scale === 0.7 && st2.homing === 0 && Math.abs(st2.speed - 1.6) < 0.01, JSON.stringify(st2));
+// homing steering: fire a boss shot sideways, confirm it curves back toward the player
+godd();
+const hom = ev("(function(){ var bo = makeScaledEnemy('juggernaut', player.mesh.position.x + 25, player.mesh.position.z); var away = new THREE.Vector3(1, 0, 0); spawnBullet(bo, away, 10); var b = bullets[bullets.length - 1]; window.__hb = b; return { h: b.group.userData.homing }; })()");
+let dotTrace = [];
+for (let hf = 0; hf < 60; hf++) {
+  step(1); godd();
+  if (hf % 12 === 11) dotTrace.push(ev("(window.__hb && window.__hb.group.userData.life > 0) ? window.__hb.group.userData.vel.clone().normalize().dot(player.mesh.position.clone().sub(window.__hb.group.position).normalize()).toFixed(2) : 'x'"));
+}
+const homR = ev("(function(){ var b = window.__hb; if (!b || b.group.userData.life <= 0) return { alive: false }; var v = b.group.userData.vel.clone().normalize(); var to = player.mesh.position.clone().sub(b.group.position).normalize(); return { alive: true, dot: v.dot(to), dist: b.group.position.distanceTo(player.mesh.position) }; })()");
+check('v29: tracking shell curves toward the player (dot improves while in flight)', homR.alive === true && (+dotTrace[1] > +dotTrace[0]), JSON.stringify(homR) + ' trace=' + dotTrace.join(','));
+// XP pacing
+const xp = ev("(function(){ state.level = 1; state.xp = 0; state.xpToNext = 120; state.playerStats.xpBonus = 0; addXP(120); return { level: state.level, next: state.xpToNext }; })()");
+closeCards();
+check('v29: slower power curve (lv1->2 needs 120, next 180)', xp.level === 2 && xp.next === 180, JSON.stringify(xp));
+// separation
+godd(); quietBoard();
+const sep = ev("(function(){ var a = makeScaledEnemy('scout', player.mesh.position.x + 0.4, player.mesh.position.z); var b = makeScaledEnemy('scout', player.mesh.position.x + 0.9, player.mesh.position.z + 0.3); return 1; })()");
+step(3);
+const sepA = ev("(function(){ var ds = enemies.map(function(e){ return Math.hypot(e.mesh.position.x - player.mesh.position.x, e.mesh.position.z - player.mesh.position.z); }); return { minPlayer: Math.min.apply(null, ds), pair: enemies.length === 2 ? Math.hypot(enemies[0].mesh.position.x - enemies[1].mesh.position.x, enemies[0].mesh.position.z - enemies[1].mesh.position.z) : -1 }; })()");
+check('v29: tanks no longer overlap (pushed out of player and each other)', sepA.minPlayer >= 3.0 && sepA.pair >= 2.5, JSON.stringify(sepA));
+// regen cap (self-contained)
+godd(); quietBoard();
+ev("(function(){ state.playerStats.regen = 50; player.maxHp = 999999; player.hp = 900000; state.lastRegenTime = clock.getElapsedTime(); state.invulnUntil = clock.getElapsedTime() + 10; return 1; })()");
+step(66); // ~1.1s -> exactly one tick (no godd here — it would refill HP before we measure)
+const rgHealed = ev("player.hp - 900000");
+check('v29: regen capped at 8 HP/s (50 regen healed only 8)', rgHealed === 8, 'healed ' + rgHealed);
+// gradual morph + targeted re-grounding
+godd(); quietBoard();
+ev("(function(){ envChunks.forEach(function(c){ delete c.__blendAt; }); startBiomeMorph((state.currentBiome + 1) % BIOMES.length); return 1; })()");
+let mf = 0;
+while (ev("biomeBlend !== null") && mf++ < 1200) { step(1); godd(); }
+let df = 0;
+while (ev("chunkTasks.length > 0") && df++ < 800) step(1);
+const morphDbg = ev("(function(){ var b = biomeBlend; return { t: b ? +b.t.toFixed(2) : null, tasks: chunkTasks.length, final: b ? b.finalPass : null }; })()");
+const morph29 = ev("(function(){ var total = 0, early = 0; envChunks.forEach(function(c){ total++; if ((c.__blendAt || 1) < 0.9) early++; }); return { total: total, stillEarly: early, blend: biomeBlend === null }; })()");
+if (morph29.blend !== true) console.log('MORPH STUCK DEBUG:', JSON.stringify(morphDbg), 'frames=' + mf + '/' + df);
+check('v29: morph completes with ALL scenery at final heights', morph29.blend === true && morph29.total > 0 && morph29.stillEarly === 0, JSON.stringify(morph29));
+check('v29: morph + rebuild ran clean', cleanSoFar(), errDetail());
+// queued-card label + track cap
+closeCards();
+const qLabel = ev("(function(){ state.pendingChoices = 2; state.isChoosingUpgrade = false; showUpgradeChoices(); var t = document.querySelector('#upgrade-choice .uc-subtitle').textContent; return t; })()");
+closeCards();
+check('v29: card screen shows the queue (+2 more queued)', qLabel.indexOf('+2 more queued') >= 0, qLabel);
+const capBtn = ev("(function(){ state.meta = { rate_inf: 200 }; state.coins = 999999; renderShop(); var rows = [].slice.call(document.querySelectorAll('#shop-items .shop-item')); var row = rows.find(function(r){ var n = r.querySelector('.si-name'); return n && n.textContent.indexOf('Precision Optics') >= 0; }); var b = row && row.querySelector('button'); return b ? b.textContent : '(none)'; })()");
+check('v29: unlimited tracks show MAX at level 200', capBtn === 'MAX', capBtn);
+
 // ---------------------------------------------------------------- report
 console.log(NL + '================ RESULTS ================');
 for (const r of results) console.log((r.ok ? 'PASS' : 'FAIL') + '  ' + r.name + (r.detail ? '   [' + r.detail + ']' : ''));
