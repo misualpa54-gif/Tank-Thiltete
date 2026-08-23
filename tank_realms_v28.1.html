@@ -947,7 +947,7 @@
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">v28.0</div>
+        <div class="version-tag" id="version-tag">v28.1</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -3088,8 +3088,11 @@
                 } else {
                     incoming = incoming - (this.armorFlat || 0);
                 }
-                const actualDamage = Math.max(this.isPlayer ? 2 : 1, incoming);
-                if (this.isPlayer) { SFX.hurt(); SFX.vibrate(35); } // v23
+                const actualDamage = Math.max(this.isPlayer ? 3 : 1, incoming);
+                if (this.isPlayer) {
+                    SFX.hurt(); SFX.vibrate(35);
+                    state.regenLockUntil = (state.runTime || 0) + 2.4;
+                }
                 this.hp -= actualDamage;
                 this.updateHpBar();
                 if (this.isBoss) try { updateBossBar(); } catch (err) {}
@@ -3161,14 +3164,7 @@
 
             die() {
                 this.isDead = true;
-                if (this.hpBar) {
-                    scene.remove(this.hpBar);
-                    if (this._hpTex) this._hpTex.dispose();
-                    disposeObject3D(this.hpBar);
-                    this.hpBar = null;
-                    this._hpCanvas = null;
-                    this._hpTex = null;
-                }
+                stripEnemyBar(this);
                 if (this.isBoss && state.bossActive === this) {
                     state.bossActive = null;
                     state.bossCooldownUntil = (state.runTime || 0) + 12;
@@ -3798,10 +3794,22 @@
             state.combo = (state.combo || 0) + 1;
             state.comboTimer = 3;
         }
+        function stripEnemyBar(enemy) {
+            if (!enemy || !enemy.hpBar) return;
+            try {
+                scene.remove(enemy.hpBar);
+                if (enemy._hpTex) enemy._hpTex.dispose();
+                disposeObject3D(enemy.hpBar);
+            } catch (err) {}
+            enemy.hpBar = null;
+            enemy._hpCanvas = null;
+            enemy._hpTex = null;
+        }
         function handleEnemyKill(enemy, isCrit, via) {
             // v26.4: one kill path so Field Medic / boss-bar / XP always fire
             if (!enemy || enemy._killHandled) return;
             enemy._killHandled = true;
+            try { stripEnemyBar(enemy); } catch (err) {}
             const points = enemy.pointValue || ENEMY_TYPES[enemy.type]?.points || 100;
             state.score += points;
             state.kills++;
@@ -4391,7 +4399,10 @@
                 state.overchargeUntil = useOvercharge ? state.runTime + 60 : 0;
                 state.funKind = null; state.funUntil = 0; state.nextFunAt = undefined;
                 state.blastUntil = 0;
+                state.invulnUntil = 0;
+                state.regenLockUntil = 0;
             }
+            if ((state.invulnUntil || 0) > (state.runTime || 0) + 4) state.invulnUntil = 0;
             state.metaAtRunStart = Object.assign({}, meta);
             state.targetEnemy = null;
             state.cameraShake = 0;
@@ -4762,11 +4773,37 @@
             player.move(dt, _sv1.set(state.input.x, state.input.y)); // FIX (Tier 3)
             player.update(dt);
             for (const en of enemies) keepTankSpacing(en);
+            // v28.1: standing in a pack always hurts — bullets can miss; presence cannot
+            if (player && !player.isDead) {
+                let dps = 0;
+                for (const e of enemies) {
+                    if (!e || e.isDead || !e.mesh) continue;
+                    const dx = e.mesh.position.x - player.mesh.position.x;
+                    const dz = e.mesh.position.z - player.mesh.position.z;
+                    const d2 = dx * dx + dz * dz;
+                    if (d2 > 13 * 13) continue;
+                    const d = Math.sqrt(d2);
+                    const fall = 1 - d / 13;
+                    const base = (ENEMY_TYPES[e.type]?.damage || 12) * (e.damageMult || 1) * (state.diffMult.dmg || 1);
+                    dps += base * 0.22 * fall;
+                }
+                if (dps > 0) {
+                    state._presenceAcc = (state._presenceAcc || 0) + dps * dt;
+                    if (state._presenceAcc >= 2) {
+                        const tick = Math.floor(state._presenceAcc);
+                        state._presenceAcc -= tick;
+                        player.takeDamage(tick);
+                        try { updateHUD(); } catch (err) {}
+                        if (player.hp <= 0) endGame();
+                    }
+                }
+            }
             updateSupplyDrops(dt);
 
             // Health regen
             const regenNow = Math.min(1.2, state.playerStats.regen || 0);
-            if (regenNow > 0 && clock.getElapsedTime() - state.lastRegenTime > 1) {
+            const regenOk = (state.runTime || 0) >= (state.regenLockUntil || 0);
+            if (regenOk && regenNow > 0 && clock.getElapsedTime() - state.lastRegenTime > 1) {
                 if (player.hp < player.maxHp) {
                     player.hp = Math.min(player.maxHp, player.hp + regenNow);
                     const overlay = dom('heal-overlay');
@@ -5051,7 +5088,7 @@
                 // Environment Object Check (Trees, Rocks)
                 // FIX (Tier 3): spatial grid — the bullet now checks only the ~3 cells near
                 // it instead of scanning every environment object (incl. 1,250 grass clumps).
-                if (!hit) {
+                if (!hit && ud.isPlayer) {
                     for (const col of collidersNear(b.group.position.x, b.group.position.z)) {
                         const dx = b.group.position.x - col.x;
                         const dz = b.group.position.z - col.z;
@@ -5138,8 +5175,7 @@
                         const dz = b.group.position.z - player.mesh.position.z;
                         const dy = Math.abs(b.group.position.y - player.mesh.position.y);
                         
-                        // v27.4: taller hit so sloped ground no longer lets flat shots pass overhead
-                        if (dx*dx + dz*dz < 2.5*2.5 && dy < 8.5) {
+                        if (dx*dx + dz*dz < 4.6*4.6 && dy < 12) {
                             showDamageDirection(b.group.position.x, b.group.position.z); // v2 UI
                             player.takeDamage(b.group.userData.damage);
                             createExplosion(b.group.position, 3, selectedSkinColor(), 'spark');
