@@ -963,7 +963,7 @@
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">v29.2</div>
+        <div class="version-tag" id="version-tag">v29.3</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -1879,8 +1879,8 @@
                 engineSet(speed01) {
                     if (!engine) return;
                     const c = audioCtx;
-                    engine.o.frequency.setTargetAtTime(38 + speed01 * 46, c.currentTime, 0.12);
-                    engine.g.gain.setTargetAtTime(0.012 + speed01 * 0.03, c.currentTime, 0.15);
+                    engine.o.frequency.setTargetAtTime(36 + speed01 * 40, c.currentTime, 0.12);
+                    engine.g.gain.setTargetAtTime(speed01 < 0.06 ? 0.0 : 0.008 + speed01 * 0.028, c.currentTime, 0.15);
                 },
                 engineStop() { if (engine) { try { engine.o.stop(); } catch (e) {} engine = null; } },
                 // -- biome ambience (looped wind bed + biome-specific accents) --
@@ -1898,12 +1898,7 @@
                     ambient = { s, g };
                     // biome accents
                     const type = biome.particleType;
-                    ambientTimer = setInterval(() => {
-                        if (!state.soundEnabled || !audioCtx) return;
-                        if (state.gamePhase !== 'playing' || state.isChoosingUpgrade || state.marketOpen) return;
-                        if (type === 'embers') { if (Math.random() < 0.2) noise(0.4, 140, 50, 0.01); }
-                        else if (type === 'snow' || type === 'sand') { if (Math.random() < 0.18) noise(0.6, 400, 220, 0.007); }
-                    }, 3200);
+                    ambientTimer = null; // v29.3: wind bed only — no random ticks
                 },
                 ambientStop() {
                     if (ambientTimer) { clearInterval(ambientTimer); ambientTimer = null; }
@@ -1927,9 +1922,8 @@
                         const root = dark ? 49 : 55;
                         const scale = dark ? [0, 3, 5, 7, 10] : [0, 2, 4, 7, 9];
                         const s = m.step++;
-                        if (s % 4 === 0) tone(root, 0.4, 'sine', 0.012 + m.intensity * 0.01, root * 0.97);
-                        if (s % 16 === 0) tone(root * 2, 1.8, 'sine', 0.007);
-                        if (boss && s % 4 === 0) tone(root * 0.5, 0.3, 'square', 0.03, root * 0.45);
+                        if (s % 16 === 0) tone(root, 1.4, 'sine', 0.006 + (boss ? 0.006 : 0));
+                        if (boss && s % 8 === 0) tone(root * 0.5, 0.3, 'square', 0.03, root * 0.45);
                     }, 260);
                 },
                 musicStop() { if (SFX._music) { clearInterval(SFX._music.timer); SFX._music = null; } }
