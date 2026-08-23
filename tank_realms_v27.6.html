@@ -905,7 +905,7 @@
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">v27.5</div>
+        <div class="version-tag" id="version-tag">v27.6</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -1334,7 +1334,7 @@
             runCoins: 0,
             xp: 0,
             level: 1,
-            xpToNext: 100,
+            xpToNext: 250,
             currentBiome: 0,
             lastFireTime: 0,
             lastSpawnTime: 0,
@@ -3752,7 +3752,7 @@
             try { addKillReward(enemy); } catch (err) {}
             const tag = via === 'missile' ? ' 🚀' : (isCrit ? ' ⚡CRIT' : '');
             try { addKillFeed(points, (ENEMY_TYPES[enemy.type]?.name || 'Tank') + tag, state.combo); } catch (err) {}
-            try { addXP(points / 2); } catch (err) {}
+            try { addXP(xpFromPoints(points)); } catch (err) {}
             if (enemy.mesh) try { showScorePopup(enemy.mesh.position.x, enemy.mesh.position.z, points); } catch (err) {}
             if (enemy.isBoss) {
                 try {
@@ -4270,7 +4270,7 @@
             state.runCoins = resume ? opts.resume.runCoins : 0;
             state.xp = resume ? opts.resume.xp : 0;
             state.level = resume ? opts.resume.level : ((mode === 'levels' && opts.startLevel) || 1);
-            state.xpToNext = resume ? opts.resume.xpToNext : 100;
+            state.xpToNext = resume ? opts.resume.xpToNext : 250;
             // v13: named saves are managed in the Casual hub
             state.isPlaying = true;
             state.gamePhase = 'playing';
@@ -4381,6 +4381,9 @@
             syncHUDControls();
         }
 
+        function xpFromPoints(points) { // v27.6: kills feed score/coins at full value; XP is slower
+            return Math.max(6, Math.round((points || 0) * 0.17));
+        }
         function addXP(amount) {
             amount *= 1 + (state.playerStats.xpBonus || 0) / 100; // v5: Bounty Hunter
             state.xp += amount;
@@ -4388,7 +4391,7 @@
             while (state.xp >= state.xpToNext) {
                 state.xp -= state.xpToNext;
                 state.level++;
-                state.xpToNext = Math.floor(state.xpToNext * 1.4);
+                state.xpToNext = Math.floor(state.xpToNext * 1.18);
 
                 // v27.5: exactly one Choose-an-upgrade per level (boss/crate are separate)
                 SFX.levelUp(); // v23
@@ -4567,7 +4570,7 @@
                 state.speedBoostUntil = (state.runTime || 0) + 10;
                 showUpgradeNotification('💨 Haste 10s');
             } else {
-                addXP(80 + state.level * 8);
+                addXP(28 + state.level * 3);
                 showUpgradeNotification('🎖️ Intel cache — XP');
             }
             try { SFX.coin(); } catch (e) {}
