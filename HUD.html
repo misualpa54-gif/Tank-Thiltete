@@ -527,6 +527,52 @@
             height: var(--hud-h);
             margin-right: calc(var(--pause-s) + 8px);
         }
+        .hud-status {
+            margin-top: 5px;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 5px;
+            max-width: calc(100% - 110px);
+            pointer-events: none;
+        }
+        .hud-pill, .buff-pill {
+            pointer-events: none;
+            padding: 3px 8px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.6px;
+            color: #fff;
+            text-shadow: 0 1px 2px #000;
+            background: linear-gradient(180deg, #4a5560, #1c2126);
+            border: 1px solid rgba(209,184,125,0.4);
+        }
+        #hud-combo { color: #fbbf24; border-color: rgba(251,191,36,0.55); }
+        .buff-row { display: flex; flex-wrap: wrap; gap: 4px; }
+        .buff-shield { border-color: #60a5fa; color: #93c5fd; }
+        .buff-ready { border-color: #38bdf8; color: #7dd3fc; }
+        .buff-oc { border-color: #c084fc; color: #e9d5ff; }
+        .buff-blast { border-color: #fb923c; color: #fdba74; }
+        .buff-haste { border-color: #4ade80; color: #86efac; }
+        .buff-bounty { border-color: #facc15; color: #fde047; }
+        .diag-overlay {
+            position: fixed;
+            left: 8px;
+            bottom: max(10px, env(safe-area-inset-bottom));
+            z-index: 80;
+            pointer-events: none;
+            font-family: ui-monospace, Menlo, monospace;
+            font-size: 10px;
+            line-height: 1.35;
+            color: #d1fae5;
+            background: rgba(0,0,0,0.62);
+            border: 1px solid rgba(52,211,153,0.35);
+            border-radius: 8px;
+            padding: 6px 8px;
+            white-space: pre;
+            max-width: 72vw;
+        }
         .hud-stack {
             display: flex;
             flex-direction: column;
@@ -1481,6 +1527,11 @@
                     </div>
                 </div>
             </div>
+            <div id="hud-status" class="hud-status">
+                <div id="hud-combo" class="hud-pill hidden">×1</div>
+                <div id="buff-row" class="buff-row"></div>
+            </div>
+            <div id="diag-overlay" class="diag-overlay hidden"></div>
             <div class="hud-corner">
                 <button id="btn-pause" class="pause-btn" aria-label="Pause game">⏸</button>
                 <div class="radar-bezel">
@@ -1664,6 +1715,10 @@
                 <button class="hud-icon-btn wide" id="toggle-quality-panel">Graphics: Auto</button>
                 <button class="hud-icon-btn wide" id="toggle-camera-panel">Camera: Follow</button>
                 <button class="hud-icon-btn wide" id="toggle-assist-panel">Assist: On</button>
+                <button class="hud-icon-btn wide" id="toggle-haptics-panel">Haptics: On</button>
+                <button class="hud-icon-btn wide" id="toggle-lefty-panel">Hands: Right</button>
+                <button class="hud-icon-btn wide" id="toggle-shake-panel">Shake: Full</button>
+                <button class="hud-icon-btn wide" id="toggle-flash-panel">Flash: Full</button>
                 <button class="hud-icon-btn wide" id="close-settings-panel">Close</button>
             </div>
             <div class="settings-row">
@@ -1673,6 +1728,8 @@
                 <div class="settings-note">Assist keeps auto-aim sticky and input easy.</div>
                 <div class="settings-label">Sound</div>
                 <div class="settings-note">Beep UI, fire, hit, and pause actions.</div>
+                <div class="settings-label">Phone comfort</div>
+                <div class="settings-note">Haptics = vibration. Hands = swap move/fire sides. Shake/Flash = less motion and red flash.</div>
             </div>
         </div>
     </div>
@@ -2006,6 +2063,11 @@
             tutorialTips: {}, // v25: seen-tips registry
             cameraMode: 'follow',
             controlAssist: true,
+            hapticsEnabled: true,
+            leftHanded: false,
+            reduceShake: false,
+            reduceFlash: false,
+            showDiag: false,
             score: 0,
             kills: 0,
             runTime: 0,
@@ -2608,7 +2670,7 @@
                     if (ambientTimer) { clearInterval(ambientTimer); ambientTimer = null; }
                     if (ambient) { try { ambient.s.stop(); } catch (e) {} ambient = null; }
                 },
-                vibrate(pattern) { try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (e) {} },
+                vibrate(pattern) { try { if (state.hapticsEnabled === false) return; if (navigator.vibrate) navigator.vibrate(pattern); } catch (e) {} },
                 // -- v24: generative music (bass pulse + pad + arp; intensity follows combat) --
                 musicStart() {
                     SFX.musicStop();
@@ -2655,6 +2717,14 @@
             if (qPanel) qPanel.textContent = `Graphics: ${qualityLabel()}`;
             if (camPanel) camPanel.textContent = `Camera: ${state.cameraMode === 'follow' ? 'Follow' : 'Wide'}`;
             if (astPanel) astPanel.textContent = `Assist: ${state.controlAssist ? 'On' : 'Off'}`;
+            const hap = document.getElementById('toggle-haptics-panel');
+            if (hap) hap.textContent = 'Haptics: ' + (state.hapticsEnabled === false ? 'Off' : 'On');
+            const lefty = document.getElementById('toggle-lefty-panel');
+            if (lefty) lefty.textContent = 'Hands: ' + (state.leftHanded ? 'Left' : 'Right');
+            const shk = document.getElementById('toggle-shake-panel');
+            if (shk) shk.textContent = 'Shake: ' + (state.reduceShake ? 'Low' : 'Full');
+            const fl = document.getElementById('toggle-flash-panel');
+            if (fl) fl.textContent = 'Flash: ' + (state.reduceFlash ? 'Low' : 'Full');
         }
 
         function toggleSound() {
@@ -6397,8 +6467,10 @@
                             createExplosion(b.group.position, 3, selectedSkinColor(), 'spark');
                             if (ud.style === 'slug') state.cameraShake = Math.max(state.cameraShake || 0, 0.28);
                             
-                            dom('damage-overlay').style.opacity = '0.5'; // FIX (Tier 4)
-                            setTimeout(() => dom('damage-overlay').style.opacity = '0', 150);
+                            if (!state.reduceFlash) {
+                                dom('damage-overlay').style.opacity = '0.5';
+                                setTimeout(() => dom('damage-overlay').style.opacity = '0', 150);
+                            }
                             
                             updateHUD();
                             if (player.hp <= 0) endGame();
@@ -6663,7 +6735,7 @@
             camera.lookAt(lx, 1.0, lz);
 
             if (state.cameraShake > 0) {
-                const shakeScale = state.cameraMode === 'wide' ? 0.55 : 1;
+                const shakeScale = (state.cameraMode === 'wide' ? 0.55 : 1) * (state.reduceShake ? 0.22 : 1);
                 camera.position.x += (Math.random() - 0.5) * state.cameraShake * shakeScale;
                 camera.position.z += (Math.random() - 0.5) * state.cameraShake * shakeScale;
                 state.cameraShake = Math.max(0, state.cameraShake - dt * 2);
@@ -6809,8 +6881,53 @@
                 const panel = document.getElementById('hp-panel');
                 if (panel) panel.classList.toggle('low-hp', hpPct < 25 && hpPct > 0);
                 const chip = document.querySelector('.level-chip');
-                if (chip) chip.classList.toggle('low-hp', hpPct < 25 && hpPct > 0);
+                if (chip) chip.classList.toggle('low-hp', !state.reduceFlash && hpPct < 25 && hpPct > 0);
             }
+            try { updateCombatTray(); } catch (err) {}
+        }
+
+        function updateCombatTray() {
+            const comboEl = document.getElementById('hud-combo');
+            const c = state.combo || 0;
+            if (comboEl) {
+                comboEl.textContent = '×' + c;
+                comboEl.classList.toggle('hidden', c < 2);
+            }
+            const row = document.getElementById('buff-row');
+            if (!row) return;
+            const now = state.runTime || 0;
+            const bits = [];
+            if (state.shieldUp) bits.push(['SHD', 'buff-shield']);
+            else if ((state.playerStats && state.playerStats.shield || 0) > 0 && now >= (state.shieldReadyAt || 0)) bits.push(['RDY', 'buff-ready']);
+            if (now < (state.overchargeUntil || 0)) bits.push(['OC', 'buff-oc']);
+            if (now < (state.blastUntil || 0)) bits.push(['+20', 'buff-blast']);
+            if (now < (state.speedBoostUntil || 0)) bits.push(['HST', 'buff-haste']);
+            if (state.funKind === 'bounty' && now < (state.funUntil || 0)) bits.push(['$$$', 'buff-bounty']);
+            const key = bits.map(function (b) { return b[0]; }).join('|');
+            if (row.dataset.k === key) return;
+            row.dataset.k = key;
+            row.innerHTML = bits.map(function (b) { return '<span class="buff-pill ' + b[1] + '">' + b[0] + '</span>'; }).join('');
+        }
+
+        let _fps = 0, _fpsN = 0, _fpsT = 0;
+        function diagTick(dt) {
+            _fpsN++;
+            _fpsT += dt || 0.016;
+            if (_fpsT >= 0.45) { _fps = _fpsN / _fpsT; _fpsN = 0; _fpsT = 0; }
+            const el = document.getElementById('diag-overlay');
+            if (!el) return;
+            if (!state.showDiag) { el.classList.add('hidden'); return; }
+            el.classList.remove('hidden');
+            let chunks = 0;
+            try { chunks = envChunks ? envChunks.size : 0; } catch (err) {}
+            el.textContent =
+                'FPS ' + Math.round(_fps) +
+                '\nE ' + (typeof enemies !== 'undefined' ? enemies.length : 0) +
+                '  B ' + (typeof bullets !== 'undefined' ? bullets.length : 0) +
+                '  P ' + (typeof particles !== 'undefined' ? particles.length : 0) +
+                '\nChunks ' + chunks +
+                '  phys ' + Math.round(_lastPhysicsCost || 0) + 'ms' +
+                '\nLv ' + (state.level || 1) + '  combo ×' + (state.combo || 0);
         }
 
         function endGame() {
@@ -6923,6 +7040,7 @@
             try {
             runChunkTasks(3); // v22: chunk micro-ops progress every frame, independent of physics
             const dt = Math.min(clock.getDelta(), 0.1);
+            try { diagTick(dt); } catch (e) {}
             if (state.gamePhase === 'playing') { updatePhysics(dt); needsRender = true; }
             // FIX (Tier 3): don't burn GPU/battery rendering a static scene in menus/pause.
             if (needsRender && renderer && scene && camera) { renderer.render(scene, camera); needsRender = false; }
@@ -6949,7 +7067,8 @@
                 for (let i = 0; i < e.changedTouches.length; i++) {
                     const t = e.changedTouches[i];
                     
-                    if (t.clientX < window.innerWidth / 2) {
+                    const moveSide = state.leftHanded ? (t.clientX > window.innerWidth / 2) : (t.clientX < window.innerWidth / 2);
+                    if (moveSide) {
                         if (moveTouch === null) {
                             moveTouch = t.identifier;
                             stickBase.style.display = 'block';
@@ -7172,6 +7291,42 @@
             e.stopPropagation();
             toggleControlAssist();
         });
+        function persistPrefs() { try { saveGame(); } catch (err) {} playUISound(); syncHUDControls(); }
+        document.getElementById('toggle-haptics-panel').addEventListener('click', (e) => {
+            e.stopPropagation();
+            state.hapticsEnabled = state.hapticsEnabled === false;
+            persistPrefs();
+        });
+        document.getElementById('toggle-lefty-panel').addEventListener('click', (e) => {
+            e.stopPropagation();
+            state.leftHanded = !state.leftHanded;
+            persistPrefs();
+        });
+        document.getElementById('toggle-shake-panel').addEventListener('click', (e) => {
+            e.stopPropagation();
+            state.reduceShake = !state.reduceShake;
+            persistPrefs();
+        });
+        document.getElementById('toggle-flash-panel').addEventListener('click', (e) => {
+            e.stopPropagation();
+            state.reduceFlash = !state.reduceFlash;
+            persistPrefs();
+        });
+        let _diagTaps = 0, _diagTapAt = 0;
+        function tapForDiag() {
+            const now = performance.now();
+            _diagTaps = (now - _diagTapAt < 700) ? _diagTaps + 1 : 1;
+            _diagTapAt = now;
+            if (_diagTaps >= 5) {
+                _diagTaps = 0;
+                state.showDiag = !state.showDiag;
+                try { diagTick(0); } catch (err) {}
+            }
+        }
+        const setTitle = document.querySelector('#settings-screen .settings-title');
+        if (setTitle) setTitle.addEventListener('click', function (e) { e.stopPropagation(); tapForDiag(); });
+        const pbTitle = document.querySelector('.pb-title');
+        if (pbTitle) pbTitle.addEventListener('click', function (e) { e.stopPropagation(); tapForDiag(); });
 
         document.getElementById('close-settings-panel').addEventListener('click', (e) => {
             e.stopPropagation();
@@ -7440,6 +7595,7 @@ updatePhysics = function(dt){
     updateCombo(dt);
     oldUpdateLoop(dt);
     try { fxTick(dt); } catch (e) {}
+    try { updateCombatTray(); } catch (e) {}
     try { tickBiomeNameAndWander(); } catch (e) {}
 };
 
@@ -7460,6 +7616,10 @@ function saveGame(){ // (uses the `store` defined at the top of the script)
             stats: state.stats || {}, achUnlocked: state.achUnlocked || [], daily: state.daily || null, // v23
             musicEnabled: state.musicEnabled !== false, // v24
             quality: state.quality || 'auto', tutorialTips: state.tutorialTips || {}, // v25
+            hapticsEnabled: state.hapticsEnabled !== false,
+            leftHanded: !!state.leftHanded,
+            reduceShake: !!state.reduceShake,
+            reduceFlash: !!state.reduceFlash,
             levels: { best: state.bestLevels || 0 },
             progress: { maxCleared: state.maxCleared || 1 }, // v13: level-select unlock
             consumables: state.consumables || { lucky: 0, headstart: 0, reroll: 0, overcharge: 0, aegis: 0 } // v11/v27.3
@@ -7487,6 +7647,10 @@ function loadGame(){
             if (d.quality === 'low') { _autoApplied = 'low'; applyQuality('low'); } // v26: actually apply the saved setting at boot (shadows/pixel-ratio were staying at High)
         } // v25
         if (d.tutorialTips) state.tutorialTips = d.tutorialTips;
+        if (d.hapticsEnabled === false) state.hapticsEnabled = false;
+        if (d.leftHanded) state.leftHanded = true;
+        if (d.reduceShake) state.reduceShake = true;
+        if (d.reduceFlash) state.reduceFlash = true;
         state.maxCleared = (d.progress && d.progress.maxCleared) || 1; // v13
         if (d.v === 3) { // v13: named save slots + auto slot
             state.casualSaves = (d.casual && d.casual.saves) || [];
