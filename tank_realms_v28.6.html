@@ -947,7 +947,7 @@
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">v28.5</div>
+        <div class="version-tag" id="version-tag">v28.6</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -3750,7 +3750,10 @@
             const L = state.level || 1;
             return {
                 hp:  1 + Math.max(0, L - 1) * 0.05  + Math.max(0, L - 10) * 0.03  + Math.max(0, L - 20) * 0.05,
-                dmg: (1.10 + Math.max(0, L - 1) * 0.032 + Math.max(0, L - 10) * 0.028 + Math.max(0, L - 20) * 0.035) * 1.5,
+                // v28.6: lv1–10 stay as you liked; after 10 damage climbs slower (teens pass)
+                dmg: (1.10 + Math.max(0, L - 1) * 0.032) * 1.5
+                    + Math.max(0, L - 10) * 0.016
+                    + Math.max(0, L - 20) * 0.022,
                 spd: 1 + Math.min(0.35, Math.max(0, L - 1) * 0.01),
                 pts: 1 + Math.max(0, L - 1) * 0.05  + Math.max(0, L - 12) * 0.03
             };
