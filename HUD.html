@@ -395,6 +395,14 @@
             border-radius: 0;
         }
         .pause-tank-mark { width: 150px; height: 106px; margin-bottom: 2px; max-height: 14vh; }
+        #start-screen .home-logo.tank-mark {
+            border: 0 !important;
+            border-radius: 0 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            overflow: visible !important;
+        }
+        #start-screen .home-logo.tank-mark::after { display: none !important; }
         #menu-tank-view {
             display: block;
             width: 100% !important;
@@ -405,6 +413,7 @@
             background: transparent !important;
             outline: none;
             box-shadow: none;
+            filter: drop-shadow(0 15px 14px rgba(0,0,0,.48)) !important;
         }
                 @keyframes homeFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
         .home-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 0; width: 100%; align-items: stretch; }
@@ -1523,8 +1532,8 @@
             <div class="hangar-fog"></div>
         </div>
         <div class="home-wrap">
-            <header class="home-hero">
-                <div class="home-logo tank-mark"><canvas id="menu-tank-view" width="420" height="300"></canvas></div>
+            <header class="home-hero command-hangar">
+                <div class="home-logo tank-mark"><canvas id="menu-tank-view" width="680" height="400" aria-label="Equipped player tank in the command hangar"></canvas></div>
                 <div class="home-titles">
                     <h1>TANK REALMS</h1>
                     <h2>CONQUER EVERY BIOME</h2>
@@ -4623,82 +4632,141 @@
         const selectedSkinColor = () => { const s = SKINS.find(k => k.id === skinState().selected); return s ? s.color : 0xf59e0b; };
 
         let _menuTank = null;
+        let menuArmorTexture = null;
+        let menuTankPreview = null;
+        function getMenuArmorTexture() {
+            if (menuArmorTexture) return menuArmorTexture;
+            const c = document.createElement('canvas'); c.width = c.height = 96; const x = c.getContext('2d');
+            x.fillStyle = '#b8b8b8'; x.fillRect(0, 0, 96, 96);
+            const g = x.createLinearGradient(0, 0, 96, 96);
+            g.addColorStop(0, 'rgba(255,255,255,.25)'); g.addColorStop(.5, 'rgba(80,80,80,.18)'); g.addColorStop(1, 'rgba(255,255,255,.08)');
+            x.fillStyle = g; x.fillRect(0, 0, 96, 96);
+            for (let i = 0; i < 80; i++) {
+                const v = 120 + Math.random() * 90;
+                x.strokeStyle = 'rgba(' + v + ',' + v + ',' + v + ',' + (0.05 + Math.random() * 0.13) + ')';
+                x.lineWidth = Math.random() < 0.8 ? 1 : 2;
+                x.beginPath();
+                const y = Math.random() * 96;
+                x.moveTo(Math.random() * 72, y);
+                x.lineTo(55 + Math.random() * 41, y + (Math.random() - 0.5) * 3);
+                x.stroke();
+            }
+            x.strokeStyle = 'rgba(45,45,45,.35)'; x.lineWidth = 2; x.strokeRect(4, 4, 88, 88);
+            x.fillStyle = 'rgba(255,255,255,.28)';
+            [[9, 9], [87, 9], [9, 87], [87, 87]].forEach(function (pt) { x.beginPath(); x.arc(pt[0], pt[1], 2, 0, Math.PI * 2); x.fill(); });
+            menuArmorTexture = new THREE.CanvasTexture(c);
+            menuArmorTexture.wrapS = menuArmorTexture.wrapT = THREE.RepeatWrapping;
+            menuArmorTexture.repeat.set(1.4, 1.8);
+            if (THREE.sRGBEncoding) menuArmorTexture.encoding = THREE.sRGBEncoding;
+            return menuArmorTexture;
+        }
         function buildShowcaseTank(color) {
-            const group = new THREE.Group();
-            const bodyMat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.34, metalness: 0.62 });
-            bodyMat.userData.skin = true;
-            const dark = new THREE.Color(color).multiplyScalar(0.55);
-            const darkMat = new THREE.MeshStandardMaterial({ color: dark, roughness: 0.42, metalness: 0.5 });
-            darkMat.userData.skinDark = true;
-            const steel = new THREE.MeshStandardMaterial({ color: 0x3a3d42, roughness: 0.28, metalness: 0.82 });
-            const trackMat = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.7, metalness: 0.28 });
-            const wheelMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.45, metalness: 0.4 });
-            const put = (geo, mat, parent, x, y, z, rx, ry, rz) => {
+            const root = new THREE.Group();
+            const main = new THREE.Color(color);
+            const militaryTone = { h: 0, s: 0, l: 0 };
+            main.getHSL(militaryTone);
+            main.setHSL(militaryTone.h, Math.min(0.58, militaryTone.s * 0.65), Math.max(0.3, Math.min(0.47, militaryTone.l * 0.72)));
+            const dark = main.clone().multiplyScalar(0.48);
+            const armorTex = getMenuArmorTexture();
+            const Phys = THREE.MeshPhysicalMaterial || THREE.MeshStandardMaterial;
+            const bodyMat = new Phys({ color: main, bumpMap: armorTex, bumpScale: 0.018, roughness: 0.64, metalness: 0.3, clearcoat: 0.06, clearcoatRoughness: 0.82 });
+            const darkMat = new THREE.MeshStandardMaterial({ color: dark, bumpMap: armorTex, bumpScale: 0.014, roughness: 0.7, metalness: 0.34 });
+            const edgeMat = new THREE.MeshStandardMaterial({ color: 0x343b3f, roughness: 0.48, metalness: 0.68 });
+            const trackMat = new THREE.MeshStandardMaterial({ color: 0x111518, roughness: 0.82, metalness: 0.55 });
+            const rubberMat = new THREE.MeshStandardMaterial({ color: 0x151719, roughness: 0.92, metalness: 0.12 });
+            const wheelMat = new THREE.MeshStandardMaterial({ color: 0x3f484e, roughness: 0.48, metalness: 0.8 });
+            const gunMat = new THREE.MeshStandardMaterial({ color: 0x343b40, roughness: 0.27, metalness: 0.9 });
+            const add = function (parent, geo, mat, x, y, z, rx, ry, rz) {
                 const m = new THREE.Mesh(geo, mat);
-                m.castShadow = true;
-                m.receiveShadow = true;
                 m.position.set(x, y, z);
-                if (rx) m.rotation.x = rx;
-                if (ry) m.rotation.y = ry;
-                if (rz) m.rotation.z = rz;
-                (parent || group).add(m);
-                return m;
+                m.rotation.set(rx || 0, ry || 0, rz || 0);
+                m.castShadow = true; m.receiveShadow = true;
+                parent.add(m); return m;
             };
-            put(new THREE.BoxGeometry(2.35, 0.72, 3.9), bodyMat, group, 0, 0.78, 0);
-            put(new THREE.BoxGeometry(2.05, 0.28, 3.15), bodyMat, group, 0, 1.22, -0.08);
-            const glacis = put(new THREE.BoxGeometry(2.2, 0.5, 1.05), bodyMat, group, 0, 0.92, 1.72);
-            glacis.rotation.x = -0.42;
-            put(new THREE.BoxGeometry(1.7, 0.22, 0.7), darkMat, group, 0, 0.58, 2.05);
-            put(new THREE.BoxGeometry(0.55, 0.22, 0.7), bodyMat, group, -0.85, 1.28, 0.55);
-            put(new THREE.BoxGeometry(0.55, 0.22, 0.7), bodyMat, group, 0.85, 1.28, 0.55);
-            put(new THREE.BoxGeometry(0.18, 0.16, 1.1), steel, group, 0.95, 1.34, -1.15);
+            const frustum = function (wb, db, wt, dt, h, topZ) {
+                topZ = topZ || 0;
+                const v = [-wb/2,0,-db/2, wb/2,0,-db/2, wb/2,0,db/2, -wb/2,0,db/2, -wt/2,h,-dt/2+topZ, wt/2,h,-dt/2+topZ, wt/2,h,dt/2+topZ, -wt/2,h,dt/2+topZ];
+                const i = [0,2,1,0,3,2,4,5,6,4,6,7,0,1,5,0,5,4,1,2,6,1,6,5,2,3,7,2,7,6,3,0,4,3,4,7];
+                const g = new THREE.BufferGeometry();
+                g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+                g.setIndex(i); g.computeVertexNormals(); return g;
+            };
+            add(root, frustum(3.25, 4.55, 2.72, 3.86, 0.82, 0.08), bodyMat, 0, 0.28, 0);
+            add(root, frustum(2.7, 3.55, 2.15, 2.72, 0.5, -0.16), bodyMat, 0, 1.08, -0.02);
+            add(root, new THREE.BoxGeometry(2.18, 0.18, 1.22), darkMat, 0, 1.52, -1.18);
+            add(root, new THREE.BoxGeometry(0.46, 0.11, 3.82), darkMat, -1.5, 1.08, -0.03);
+            add(root, new THREE.BoxGeometry(0.46, 0.11, 3.82), darkMat, 1.5, 1.08, -0.03);
+            add(root, new THREE.BoxGeometry(2.45, 0.13, 0.92), darkMat, 0, 0.94, 1.77, -0.42);
+            [-0.83, 0.83].forEach(function (x) { add(root, new THREE.TorusGeometry(0.16, 0.045, 7, 14, Math.PI * 1.55), edgeMat, x, 0.54, 2.22); });
+            [-1, 1].forEach(function (side) {
+                const sx = side * 1.63;
+                add(root, new THREE.BoxGeometry(0.54, 0.72, 4.38), trackMat, sx, 0.58, 0);
+                add(root, new THREE.BoxGeometry(0.62, 0.13, 4.24), trackMat, sx, 1.03, 0);
+                add(root, new THREE.BoxGeometry(0.62, 0.13, 4.16), trackMat, sx, 0.13, 0);
+                for (let n = 0; n < 6; n++) {
+                    const z = -1.72 + n * 0.69, r = (n === 0 || n === 5) ? 0.43 : 0.36;
+                    add(root, new THREE.CylinderGeometry(r, r, 0.25, 20), rubberMat, sx, 0.55, z, 0, 0, Math.PI / 2);
+                    add(root, new THREE.CylinderGeometry(r * 0.62, r * 0.62, 0.27, 16), wheelMat, sx, 0.55, z, 0, 0, Math.PI / 2);
+                    add(root, new THREE.CylinderGeometry(0.09, 0.09, 0.29, 12), edgeMat, sx, 0.55, z, 0, 0, Math.PI / 2);
+                }
+                for (let n = 0; n < 11; n++) {
+                    const z = -1.98 + n * 0.395;
+                    add(root, new THREE.BoxGeometry(0.68, 0.12, 0.30), trackMat, sx, 1.12, z);
+                    add(root, new THREE.BoxGeometry(0.68, 0.12, 0.30), trackMat, sx, 0.04, z);
+                }
+                [-2.12, 2.12].forEach(function (z) {
+                    for (let n = 0; n < 3; n++) add(root, new THREE.BoxGeometry(0.68, 0.12, 0.3), trackMat, sx, 0.28 + n * 0.27, z, 0, 0, z < 0 ? -0.18 : 0.18);
+                });
+                for (let n = 0; n < 4; n++) add(root, new THREE.BoxGeometry(0.1, 0.47, 0.82), bodyMat, side * 1.94, 0.89, -1.28 + n * 0.86, 0, 0, side * 0.025);
+            });
             const turretPivot = new THREE.Group();
             turretPivot.name = 'turretPivot';
-            turretPivot.position.set(0, 1.36, -0.12);
-            group.add(turretPivot);
-            put(new THREE.CylinderGeometry(0.92, 1.08, 0.38, 12), bodyMat, turretPivot, 0, 0.2, 0);
-            put(new THREE.BoxGeometry(1.55, 0.58, 1.85), bodyMat, turretPivot, 0, 0.52, 0.12);
-            put(new THREE.BoxGeometry(1.25, 0.36, 0.7), bodyMat, turretPivot, 0, 0.48, 1.05);
-            put(new THREE.CylinderGeometry(0.28, 0.34, 0.42, 12), steel, turretPivot, 0, 0.46, 1.38, Math.PI / 2);
-            put(new THREE.CylinderGeometry(0.1, 0.13, 3.05, 12), steel, turretPivot, 0, 0.46, 2.92, Math.PI / 2);
-            put(new THREE.CylinderGeometry(0.16, 0.12, 0.32, 10), steel, turretPivot, 0, 0.46, 4.48, Math.PI / 2);
-            put(new THREE.CylinderGeometry(0.26, 0.26, 0.14, 12), darkMat, turretPivot, -0.22, 0.86, -0.18);
-            put(new THREE.CylinderGeometry(0.015, 0.01, 1.15, 6), steel, turretPivot, -0.52, 1.18, -0.45, 0, 0, 0.12);
+            turretPivot.position.y = 1.48;
+            root.add(turretPivot);
+            add(turretPivot, new THREE.CylinderGeometry(1.03, 1.08, 0.24, 32), edgeMat, 0, 0.06, 0);
+            const turretShell = add(turretPivot, new THREE.CylinderGeometry(0.92, 1.14, 0.68, 10), bodyMat, 0, 0.5, -0.03);
+            turretShell.scale.z = 1.24;
+            add(turretPivot, new THREE.BoxGeometry(1.42, 0.42, 0.78), bodyMat, 0, 0.5, -1.05);
+            add(turretPivot, new THREE.BoxGeometry(0.62, 0.5, 0.74), bodyMat, -0.67, 0.48, 0.55, 0, -0.16, 0);
+            add(turretPivot, new THREE.BoxGeometry(0.62, 0.5, 0.74), bodyMat, 0.67, 0.48, 0.55, 0, 0.16, 0);
+            const mantlet = add(turretPivot, new THREE.SphereGeometry(0.52, 20, 12), darkMat, 0, 0.56, 1.13);
+            mantlet.scale.set(1.16, 0.82, 0.52);
+            add(turretPivot, new THREE.CylinderGeometry(0.15, 0.19, 3.35, 16), gunMat, 0, 0.57, 2.83, Math.PI / 2);
+            add(turretPivot, new THREE.CylinderGeometry(0.23, 0.19, 0.48, 12), gunMat, 0, 0.57, 4.73, Math.PI / 2);
+            add(turretPivot, new THREE.BoxGeometry(0.42, 0.08, 0.24), edgeMat, 0, 0.57, 4.78);
+            add(turretPivot, new THREE.CylinderGeometry(0.34, 0.39, 0.22, 16), darkMat, -0.42, 1.0, -0.25);
+            const hatch = add(turretPivot, new THREE.CylinderGeometry(0.34, 0.34, 0.08, 16), edgeMat, -0.42, 1.15, -0.25);
+            hatch.rotation.z = -0.1;
+            const opticMat = new THREE.MeshStandardMaterial({ color: 0x112a31, emissive: 0x1e9eb7, emissiveIntensity: 0.42, roughness: 0.2, metalness: 0.55 });
+            add(turretPivot, new THREE.BoxGeometry(0.24, 0.28, 0.27), opticMat, 0.48, 0.89, 0.44);
             [-1, 1].forEach(function (side) {
-                const x = side * 1.42;
-                put(new THREE.CylinderGeometry(0.38, 0.38, 0.24, 16), wheelMat, group, x, 0.42, -2.02, 0, 0, Math.PI / 2);
-                put(new THREE.CylinderGeometry(0.42, 0.42, 0.08, 10), steel, group, x, 0.42, -2.02, 0, 0, Math.PI / 2);
-                put(new THREE.CylinderGeometry(0.38, 0.38, 0.24, 16), wheelMat, group, x, 0.42, 2.02, 0, 0, Math.PI / 2);
-                for (let i = -1.35; i <= 1.35; i += 0.54) {
-                    put(new THREE.CylinderGeometry(0.29, 0.29, 0.2, 16), wheelMat, group, x, 0.3, i, 0, 0, Math.PI / 2);
-                    put(new THREE.CylinderGeometry(0.11, 0.11, 0.22, 10), steel, group, x, 0.3, i, 0, 0, Math.PI / 2);
-                }
-                put(new THREE.CylinderGeometry(0.13, 0.13, 0.16, 12), wheelMat, group, x, 0.7, -0.65, 0, 0, Math.PI / 2);
-                put(new THREE.CylinderGeometry(0.13, 0.13, 0.16, 12), wheelMat, group, x, 0.7, 0.65, 0, 0, Math.PI / 2);
-                put(new THREE.BoxGeometry(0.34, 0.065, 3.95), trackMat, group, x, 0.045, 0);
-                put(new THREE.BoxGeometry(0.34, 0.055, 3.15), trackMat, group, x, 0.8, 0);
-                const wrapF = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.06, 8, 18, Math.PI), trackMat);
-                wrapF.rotation.set(Math.PI / 2, 0, Math.PI / 2);
-                wrapF.position.set(x, 0.42, 2.02);
-                wrapF.castShadow = true;
-                group.add(wrapF);
-                const wrapR = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.06, 8, 18, Math.PI), trackMat);
-                wrapR.rotation.set(Math.PI / 2, 0, -Math.PI / 2);
-                wrapR.position.set(x, 0.42, -2.02);
-                wrapR.castShadow = true;
-                group.add(wrapR);
-                put(new THREE.BoxGeometry(0.46, 0.07, 3.45), darkMat, group, x, 0.94, 0);
+                for (let n = 0; n < 3; n++) add(turretPivot, new THREE.CylinderGeometry(0.055, 0.075, 0.42, 8), gunMat, side * 0.92, 0.58, 0.22 + n * 0.19, 0, 0, side * 0.72);
             });
-            return group;
+            add(turretPivot, new THREE.CylinderGeometry(0.018, 0.018, 1.48, 6), gunMat, -0.63, 1.7, -0.55, 0, 0, 0.12);
+            const lampMat = new THREE.MeshStandardMaterial({ color: 0xfff1bd, emissive: 0xffb52e, emissiveIntensity: 1.75, roughness: 0.16 });
+            [-0.76, 0.76].forEach(function (x) {
+                add(root, new THREE.CylinderGeometry(0.17, 0.17, 0.11, 16), edgeMat, x, 0.84, 2.12, Math.PI / 2);
+                add(root, new THREE.CircleGeometry(0.13, 16), lampMat, x, 0.84, 2.19);
+            });
+            for (let n = -2; n <= 2; n++) add(root, new THREE.BoxGeometry(0.3, 0.065, 0.88), trackMat, n * 0.39, 1.66, -1.2);
+            [-0.72, 0.72].forEach(function (x) { add(root, new THREE.CylinderGeometry(0.14, 0.18, 0.66, 12), gunMat, x, 0.73, -2.13, Math.PI / 2); });
+            [-1, 1].forEach(function (side) {
+                for (let n = 0; n < 5; n++) add(root, new THREE.SphereGeometry(0.035, 7, 5), edgeMat, side * 1.37, 1.19, -1.42 + n * 0.72);
+            });
+            root.userData.bodyMat = bodyMat;
+            root.userData.darkMat = darkMat;
+            root.userData.turret = turretPivot;
+            return root;
         }
         function tintShowcaseTank(color) {
-            if (!_menuTank || !_menuTank.mesh) return;
-            const dark = new THREE.Color(color).multiplyScalar(0.6);
-            _menuTank.mesh.traverse(c => {
-                if (!c.material) return;
-                if (c.material.userData && c.material.userData.skin) c.material.color.setHex(color);
-                if (c.material.userData && c.material.userData.skinDark) c.material.color.copy(dark);
-            });
+            const tank = (_menuTank && _menuTank.mesh) || (menuTankPreview && menuTankPreview.tank);
+            if (!tank || !tank.userData) return;
+            const c = new THREE.Color(color);
+            const tone = { h: 0, s: 0, l: 0 };
+            c.getHSL(tone);
+            c.setHSL(tone.h, Math.min(0.58, tone.s * 0.65), Math.max(0.3, Math.min(0.47, tone.l * 0.72)));
+            if (tank.userData.bodyMat) tank.userData.bodyMat.color.copy(c);
+            if (tank.userData.darkMat) tank.userData.darkMat.color.copy(c.clone().multiplyScalar(0.48));
         }
         function menuTankVisible() {
             const start = document.getElementById('start-screen');
@@ -4706,109 +4774,107 @@
             return !!(start && !start.classList.contains('hidden')) || !!(pause && !pause.classList.contains('hidden'));
         }
         function syncMenuTankPreview() {
-            if (!_menuTank) return;
-            const canvas = _menuTank.canvas;
+            const preview = menuTankPreview || _menuTank;
+            if (!preview) return;
+            const canvas = preview.canvas || document.getElementById('menu-tank-view');
+            if (!canvas) return;
             const start = document.getElementById('start-screen');
             const home = document.querySelector('#start-screen .tank-mark');
             const pauseBox = document.querySelector('#pause-screen .pause-tank-mark');
             if (start && !start.classList.contains('hidden') && home) home.appendChild(canvas);
             else if (pauseBox && !document.getElementById('pause-screen').classList.contains('hidden')) pauseBox.appendChild(canvas);
             tintShowcaseTank(selectedSkinColor());
-            if (menuTankVisible() && !_menuTank.raf) {
-                const spin = () => {
-                    if (!menuTankVisible() || !_menuTank) { _menuTank.raf = 0; return; }
-                    _menuTank.mesh.rotation.y += 0.007;
-                    const turr = _menuTank.mesh.getObjectByName('turretPivot');
-                    if (turr) turr.rotation.y = Math.sin(performance.now() * 0.00045) * 0.18;
-                    _menuTank.renderer.render(_menuTank.scene, _menuTank.camera);
-                    _menuTank.raf = requestAnimationFrame(spin);
-                };
-                _menuTank.raf = requestAnimationFrame(spin);
-            }
         }
         function startMenuTankPreview() {
-            if (_menuTank || typeof THREE === 'undefined') return;
+            if (menuTankPreview || _menuTank || typeof THREE === 'undefined') return;
             const canvas = document.getElementById('menu-tank-view');
             if (!canvas) return;
-            const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-            const cw = canvas.clientWidth || 240;
-            const ch = canvas.clientHeight || 168;
-            renderer.setSize(cw, ch, false);
-            canvas.style.width = '100%';
-            canvas.style.height = '100%';
-            canvas.style.position = 'relative';
-            renderer.outputEncoding = THREE.sRGBEncoding;
-            renderer.toneMapping = THREE.ACESFilmicToneMapping;
-            renderer.toneMappingExposure = 1.22;
-            renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-            renderer.setClearColor(0x000000, 0);
-            const sc = new THREE.Scene();
-            const cam = new THREE.PerspectiveCamera(32, Math.max(0.6, (canvas.clientWidth || 240) / (canvas.clientHeight || 168)), 0.1, 40);
-            cam.fov = 28;
-            cam.updateProjectionMatrix();
-            cam.position.set(5.4, 3.7, 6.6);
-            cam.lookAt(0, 1.05, 0.1);
-            sc.add(new THREE.AmbientLight(0x6a7380, 0.28));
-            const hemi = new THREE.HemisphereLight(0xffe8c0, 0x1a1e24, 0.42);
-            sc.add(hemi);
-            const sun = new THREE.DirectionalLight(0xfff3d6, 1.45);
-            sun.position.set(5.2, 9.2, 4.4);
-            sun.castShadow = true;
-            sun.shadow.mapSize.set(1024, 1024);
-            sun.shadow.camera.near = 1;
-            sun.shadow.camera.far = 24;
-            sun.shadow.camera.left = -6;
-            sun.shadow.camera.right = 6;
-            sun.shadow.camera.top = 6;
-            sun.shadow.camera.bottom = -6;
-            sun.shadow.bias = -0.0004;
-            sc.add(sun);
-            const fill = new THREE.DirectionalLight(0x8eb8ff, 0.38);
-            fill.position.set(-7, 3.2, -3);
-            sc.add(fill);
-            const rim = new THREE.DirectionalLight(0xffd27a, 0.55);
-            rim.position.set(-3, 4.5, 8);
-            sc.add(rim);
-            const under = new THREE.PointLight(0xC8A86B, 0.55, 10, 2);
-            under.position.set(0, 0.35, 0);
-            sc.add(under);
-            sc.fog = new THREE.Fog(0x0b0e12, 10, 28);
-            const metal = new THREE.MeshStandardMaterial({ color: 0x6a727c, metalness: 0.85, roughness: 0.32 });
-            const metalDark = new THREE.MeshStandardMaterial({ color: 0x3a4048, metalness: 0.8, roughness: 0.4 });
-            const goldTrim = new THREE.MeshStandardMaterial({ color: 0xC8A86B, metalness: 0.9, roughness: 0.28 });
-            const disc = new THREE.Mesh(new THREE.CylinderGeometry(2.15, 2.25, 0.08, 48), metal);
-            disc.position.y = 0.02;
-            disc.receiveShadow = true;
-            sc.add(disc);
-            const ring = new THREE.Mesh(new THREE.TorusGeometry(2.05, 0.03, 10, 48), goldTrim);
-            ring.rotation.x = Math.PI / 2;
-            ring.position.y = 0.07;
-            sc.add(ring);
-            const ground = new THREE.Mesh(
-                new THREE.CircleGeometry(3.2, 40),
-                new THREE.ShadowMaterial({ opacity: 0.38 })
-            );
-            ground.rotation.x = -Math.PI / 2;
-            ground.position.y = -0.01;
-            ground.receiveShadow = true;
-            sc.add(ground);
-            for (let s = 0; s < 5; s++) {
-                const screen = new THREE.Mesh(
-                    new THREE.PlaneGeometry(1.3 + Math.random() * 0.4, 0.8),
-                    new THREE.MeshBasicMaterial({ color: s % 2 ? 0x2a6a88 : 0x1a5a44, transparent: true, opacity: 0.35 })
-                );
-                const ang = -0.9 + s * 0.45;
-                screen.position.set(Math.sin(ang) * 7.2, 2.1 + (s % 3) * 0.35, -6.2 - Math.cos(ang) * 0.4);
-                screen.lookAt(0, 1.4, 0);
-                sc.add(screen);
+            try {
+                const studio = new THREE.Scene();
+                studio.background = null;
+                studio.fog = new THREE.Fog(0x080d11, 11, 26);
+                const cam = new THREE.PerspectiveCamera(35, 340 / 200, 0.1, 60);
+                cam.position.set(8.1, 5.15, 9.45);
+                cam.lookAt(0, 1.02, 0.12);
+                const previewRenderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true, powerPreference: 'high-performance' });
+                previewRenderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+                previewRenderer.setSize(340, 200, false);
+                previewRenderer.setClearColor(0x000000, 0);
+                previewRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+                previewRenderer.toneMappingExposure = 0.92;
+                if (THREE.sRGBEncoding) previewRenderer.outputEncoding = THREE.sRGBEncoding;
+                previewRenderer.shadowMap.enabled = true;
+                previewRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                studio.add(new THREE.HemisphereLight(0xaec9d6, 0x17100b, 0.52));
+                const key = new THREE.DirectionalLight(0xffdda0, 1.28);
+                key.position.set(5, 10, 7); key.castShadow = true; key.shadow.mapSize.set(512, 512); studio.add(key);
+                const rim = new THREE.DirectionalLight(0x45d7ff, 0.56);
+                rim.position.set(-7, 5, -5); studio.add(rim);
+                const topSpot = new THREE.SpotLight(0xffd27a, 1.25, 24, Math.PI / 6, 0.55, 1.4);
+                topSpot.position.set(0, 10, 1);
+                topSpot.target.position.set(0, 0, 0);
+                topSpot.castShadow = true;
+                studio.add(topSpot); studio.add(topSpot.target);
+                const trimMat = new THREE.MeshStandardMaterial({ color: 0x303a42, roughness: 0.46, metalness: 0.82 });
+                const mkScreen = function (x, y, w, h, color) {
+                    const frame = new THREE.Mesh(new THREE.BoxGeometry(w + 0.18, h + 0.18, 0.18), trimMat);
+                    frame.position.set(x, y, -5.24); studio.add(frame);
+                    const scr = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.7 }));
+                    scr.position.set(x, y, -5.13); studio.add(scr);
+                };
+                mkScreen(-3.4, 3.6, 2.5, 1.25, 0x164f62);
+                mkScreen(0, 4.1, 2.8, 1.4, 0x705321);
+                mkScreen(3.4, 3.6, 2.5, 1.25, 0x164f62);
+                [-4.8, -2.2, 2.2, 4.8].forEach(function (x) {
+                    const lamp = new THREE.PointLight(0x42d9ff, 0.32, 6);
+                    lamp.position.set(x, 3.4, -4.6); studio.add(lamp);
+                });
+                const platform = new THREE.Group();
+                const p0 = new THREE.Mesh(new THREE.CylinderGeometry(4.25, 4.5, 0.45, 64), new THREE.MeshStandardMaterial({ color: 0x171c20, roughness: 0.5, metalness: 0.86 }));
+                p0.position.y = -0.38; p0.receiveShadow = true; platform.add(p0);
+                const p1 = new THREE.Mesh(new THREE.CylinderGeometry(3.72, 3.95, 0.26, 64), new THREE.MeshStandardMaterial({ color: 0x414a50, roughness: 0.38, metalness: 0.9 }));
+                p1.position.y = -0.12; p1.receiveShadow = true; platform.add(p1);
+                const p2 = new THREE.Mesh(new THREE.CylinderGeometry(3.25, 3.5, 0.13, 64), new THREE.MeshStandardMaterial({ color: 0x1d2428, roughness: 0.42, metalness: 0.85, emissive: 0x2b210e, emissiveIntensity: 0.28 }));
+                p2.position.y = 0.06; platform.add(p2);
+                const serviceRing = new THREE.Mesh(new THREE.TorusGeometry(3.55, 0.075, 10, 64), new THREE.MeshBasicMaterial({ color: 0xc8a86b }));
+                serviceRing.rotation.x = Math.PI / 2; serviceRing.position.y = 0.08; platform.add(serviceRing);
+                studio.add(platform);
+                const tank = buildShowcaseTank(selectedSkinColor());
+                const spinner = new THREE.Group();
+                tank.position.z = -1.05;
+                tank.scale.setScalar(1.04);
+                spinner.rotation.y = 0.48;
+                spinner.add(tank);
+                studio.add(spinner);
+                menuTankPreview = { studio: studio, cam: cam, renderer: previewRenderer, tank: tank, spinner: spinner, platform: platform, canvas: canvas, color: selectedSkinColor(), last: performance.now() };
+                _menuTank = { renderer: previewRenderer, scene: studio, camera: cam, mesh: tank, canvas: canvas, raf: 1 };
+                const frame = function (now) {
+                    if (!menuTankPreview) return;
+                    requestAnimationFrame(frame);
+                    if (!menuTankVisible()) return;
+                    const p = menuTankPreview;
+                    const dt = Math.min(0.04, (now - p.last) / 1000);
+                    p.last = now;
+                    const cw = Math.max(1, Math.round(canvas.clientWidth));
+                    const ch = Math.max(1, Math.round(canvas.clientHeight));
+                    if (cw !== p.cssW || ch !== p.cssH) {
+                        p.cssW = cw; p.cssH = ch;
+                        p.cam.aspect = cw / ch; p.cam.updateProjectionMatrix();
+                        p.renderer.setSize(cw, ch, false);
+                    }
+                    const chosen = selectedSkinColor();
+                    if (chosen !== p.color) { p.color = chosen; tintShowcaseTank(chosen); }
+                    p.spinner.rotation.y += dt * 0.28;
+                    if (p.platform) p.platform.rotation.y -= dt * 0.045;
+                    if (p.tank.userData.turret) p.tank.userData.turret.rotation.y = Math.sin(now * 0.00055) * 0.2;
+                    p.spinner.position.y = 0;
+                    p.renderer.render(p.studio, p.cam);
+                };
+                requestAnimationFrame(frame);
+                syncMenuTankPreview();
+            } catch (err) {
+                try { canvas.style.display = 'none'; } catch (e) {}
             }
-            const mesh = buildShowcaseTank(selectedSkinColor());
-            mesh.position.y = 0.08;
-            sc.add(mesh);
-            _menuTank = { renderer: renderer, scene: sc, camera: cam, mesh: mesh, canvas: canvas, raf: 0 };
-            syncMenuTankPreview();
         }
 
         // ============================================
