@@ -963,7 +963,7 @@
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">v29.0</div>
+        <div class="version-tag" id="version-tag">v29.1</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -4888,6 +4888,12 @@
             const _physT0 = performance.now(); // v21: frame cost probe (for morph self-throttling)
             if (!player || player.isDead) return;
             state.runTime = (state.runTime || 0) + dt; // v2: pause-proof run clock
+            if (state._blastLive && (state.runTime || 0) >= (state.blastUntil || 0)) {
+                state._blastLive = false;
+                try { showUpgradeNotification('💥 +20% damage ended'); } catch (err) {}
+            } else if ((state.runTime || 0) < (state.blastUntil || 0)) {
+                state._blastLive = true;
+            }
 
             // Player movement
             player.move(dt, _sv1.set(state.input.x, state.input.y)); // FIX (Tier 3)
