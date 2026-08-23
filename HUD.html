@@ -298,7 +298,7 @@
             width: 100%;
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 12px;
             position: relative;
             z-index: 5;
         }
@@ -380,8 +380,8 @@
         }
         #start-screen .home-btn-awards .hb-sub { color: #D8BA8E; }
         .home-logo.tank-mark, .pause-tank-mark {
-            width: min(78vw, 280px);
-            height: min(22vh, 148px);
+            width: min(86vw, 320px);
+            height: min(26vh, 176px);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -4624,7 +4624,7 @@
             const scale = 1;
             const group = new THREE.Group();
             const darkColor = new THREE.Color(color).multiplyScalar(0.6);
-            const bodyMat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.38, metalness: 0.64 });
+            const bodyMat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.26, metalness: 0.78, envMapIntensity: 1.15 });
             bodyMat.userData.skin = true;
             const hull = new THREE.Mesh(new THREE.BoxGeometry(2.6 * scale, 0.9 * scale, 3.8 * scale), bodyMat);
             hull.position.y = 0.65 * scale;
@@ -4729,7 +4729,9 @@
             if (menuTankVisible() && !_menuTank.raf) {
                 const spin = () => {
                     if (!menuTankVisible() || !_menuTank) { _menuTank.raf = 0; return; }
-                    _menuTank.mesh.rotation.y += 0.012;
+                    _menuTank.mesh.rotation.y += 0.007;
+                    const turr = _menuTank.mesh.children.find(function (c) { return c.isGroup; });
+                    if (turr) turr.rotation.y = Math.sin(performance.now() * 0.00045) * 0.18;
                     _menuTank.renderer.render(_menuTank.scene, _menuTank.camera);
                     _menuTank.raf = requestAnimationFrame(spin);
                 };
@@ -4750,25 +4752,40 @@
             canvas.style.position = 'relative';
             renderer.outputEncoding = THREE.sRGBEncoding;
             renderer.toneMapping = THREE.ACESFilmicToneMapping;
-            renderer.toneMappingExposure = 1.12;
+            renderer.toneMappingExposure = 1.22;
             renderer.shadowMap.enabled = true;
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             renderer.setClearColor(0x000000, 0);
             const sc = new THREE.Scene();
             const cam = new THREE.PerspectiveCamera(32, Math.max(0.6, (canvas.clientWidth || 240) / (canvas.clientHeight || 168)), 0.1, 40);
-            cam.position.set(6.4, 4.9, 7.4);
-            cam.lookAt(0, 0.85, 0.15);
-            sc.add(new THREE.AmbientLight(0x8890a0, 0.55));
-            const hemi = new THREE.HemisphereLight(0xfff3d0, 0x2a2418, 0.7);
+            cam.fov = 28;
+            cam.updateProjectionMatrix();
+            cam.position.set(5.4, 3.7, 6.6);
+            cam.lookAt(0, 1.05, 0.1);
+            sc.add(new THREE.AmbientLight(0x6a7380, 0.28));
+            const hemi = new THREE.HemisphereLight(0xffe8c0, 0x1a1e24, 0.42);
             sc.add(hemi);
-            const sun = new THREE.DirectionalLight(0xfff5e0, 1.15);
-            sun.position.set(6, 10, 5);
+            const sun = new THREE.DirectionalLight(0xfff3d6, 1.45);
+            sun.position.set(5.2, 9.2, 4.4);
             sun.castShadow = true;
-            sun.shadow.mapSize.set(512, 512);
+            sun.shadow.mapSize.set(1024, 1024);
+            sun.shadow.camera.near = 1;
+            sun.shadow.camera.far = 24;
+            sun.shadow.camera.left = -6;
+            sun.shadow.camera.right = 6;
+            sun.shadow.camera.top = 6;
+            sun.shadow.camera.bottom = -6;
+            sun.shadow.bias = -0.0004;
             sc.add(sun);
-            const fill = new THREE.DirectionalLight(0x9ecbff, 0.28);
-            fill.position.set(-6, 3, -4);
+            const fill = new THREE.DirectionalLight(0x8eb8ff, 0.38);
+            fill.position.set(-7, 3.2, -3);
             sc.add(fill);
+            const rim = new THREE.DirectionalLight(0xffd27a, 0.55);
+            rim.position.set(-3, 4.5, 8);
+            sc.add(rim);
+            const under = new THREE.PointLight(0xC8A86B, 0.55, 10, 2);
+            under.position.set(0, 0.35, 0);
+            sc.add(under);
             sc.fog = new THREE.Fog(0x0b0e12, 10, 28);
             const metal = new THREE.MeshStandardMaterial({ color: 0x6a727c, metalness: 0.85, roughness: 0.32 });
             const metalDark = new THREE.MeshStandardMaterial({ color: 0x3a4048, metalness: 0.8, roughness: 0.4 });
