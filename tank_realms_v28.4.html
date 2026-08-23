@@ -947,7 +947,7 @@
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">v28.3</div>
+        <div class="version-tag" id="version-tag">v28.4</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -1290,6 +1290,17 @@
             wasp:       { name: "Wasp",       color: 0xfacc15, hp: 30,  speed: 2.2,  damage: 8,  fireRate: 0.9,  size: 0.55, points: 95,  desc: "Fast weaving swarm — hard to hit" },
             juggernaut: { name: "Juggernaut", color: 0x334155, hp: 400, speed: 0.38, damage: 30, fireRate: 0.22, size: 2.0,  points: 700, desc: "Armored wall — it will not stop coming" },
             raider:     { name: "Raider",     color: 0xfb7185, hp: 75,  speed: 1.75, damage: 15, fireRate: 0.55, size: 0.85, points: 210, desc: "Dashes in, dumps a clip, dashes out" },
+            // v28.4: named variants
+            scouter:      { name: "Scouter",      color: 0x4ade80, hp: 32,  speed: 1.65, damage: 10, fireRate: 0.7,  size: 0.72, points: 70,  desc: "Scout plus — slow curving sparks" },
+            soldierpro:   { name: "Soldierpro",   color: 0x991b1b, hp: 70,  speed: 1.05, damage: 18, fireRate: 0.42, size: 1.05, points: 130, desc: "Hardened soldier — light-curve bolts" },
+            heavier:      { name: "Heavier",      color: 0x292524, hp: 170, speed: 0.42, damage: 32, fireRate: 0.22, size: 1.7,  points: 260, desc: "Bigger heavy — fat straight slugs" },
+            picker:       { name: "Picker",       color: 0x818cf8, hp: 42,  speed: 0.55, damage: 34, fireRate: 0.14, size: 0.92, points: 210, desc: "Sniper cousin — slow seeking lances" },
+            squsasher:    { name: "Squsasher",    color: 0x0d9488, hp: 80,  speed: 1.6,  damage: 17, fireRate: 0.7,  size: 0.8,  points: 280, desc: "Skirmisher plus — fast curving fire" },
+            deathbringer: { name: "Deathbringer", color: 0x7f1d1d, hp: 55,  speed: 1.7,  damage: 28, fireRate: 0.45, size: 0.9,  points: 220, desc: "Bomber that also shoots seeking sparks" },
+            phantasm:     { name: "Phantasm",     color: 0xf1f5f9, hp: 70,  speed: 1.25, damage: 16, fireRate: 0.55, size: 0.95, points: 260, desc: "Deeper phantom — slow tracking orbs" },
+            gunnier:      { name: "Gunnier",      color: 0x6d28d9, hp: 110, speed: 0.68, damage: 12, fireRate: 0.55, size: 1.2,  points: 240, desc: "Burst gunner — shells snap onto you" },
+            tombraider:   { name: "TombRaider",   color: 0xbe123c, hp: 95,  speed: 1.85, damage: 17, fireRate: 0.6,  size: 0.9,  points: 280, desc: "Raider plus — curving dash fire" },
+            hammer:       { name: "Hammer",       color: 0x0f172a, hp: 520, speed: 0.34, damage: 34, fireRate: 0.2,  size: 2.15, points: 850, desc: "Juggernaut plus — heavy seeking slugs" },
             // v6(C): bosses
             warlord:  { name: "WARLORD",  color: 0xb91c1c, hp: 600, speed: 0.45, damage: 20, fireRate: 0.3, size: 2.6, points: 1500, desc: "BOSS — five-shell barrages" },
             colossus: { name: "COLOSSUS", color: 0x6d28d9, hp: 750, speed: 0.35, damage: 15, fireRate: 0.3, size: 3.0, points: 1800, desc: "BOSS — bursts and reinforcements" },
@@ -1311,14 +1322,24 @@
             phantom:    { color: 0xcbd5e1, speed: 26, life: 2.10, style: 'orb',   home: 0.09 },
             gunner:     { color: 0xc084fc, speed: 46, life: 1.25, style: 'spark', home: 0.00 },
             skirmisher: { color: 0x2dd4bf, speed: 44, life: 1.40, style: 'bolt',  home: 0.00 },
-            wasp:       { color: 0xfde047, speed: 50, life: 1.20, style: 'spark', home: 0.00 },
+            wasp:       { color: 0xfde047, speed: 50, life: 1.40, style: 'spark', home: 0.80 },
             raider:     { color: 0xfb7185, speed: 48, life: 1.25, style: 'bolt',  home: 0.00 },
             juggernaut: { color: 0x94a3b8, speed: 24, life: 2.40, style: 'slug',  home: 0.16 },
-            warlord:    { color: 0xf87171, speed: 32, life: 1.90, style: 'slug',  home: 0.14 },
-            colossus:   { color: 0xa78bfa, speed: 30, life: 2.10, style: 'orb',   home: 0.12 },
-            nova:       { color: 0x67e8f9, speed: 38, life: 1.70, style: 'spark', home: 0.00 },
-            titan:      { color: 0x93c5fd, speed: 28, life: 1.80, style: 'slug',  home: 0.00 },
-            tempest:    { color: 0x38bdf8, speed: 36, life: 1.70, style: 'lance', home: 0.14 },
+            scouter:      { color: 0x86efac, speed: 10, life: 2.40, style: 'spark', home: 0.09 },
+            soldierpro:   { color: 0xf87171, speed: 17, life: 2.20, style: 'bolt',  home: 0.05 },
+            heavier:      { color: 0xa8a29e, speed: 20, life: 2.00, style: 'slug',  home: 0.00 },
+            picker:       { color: 0xc4b5fd, speed: 10, life: 2.60, style: 'lance', home: 0.20 },
+            squsasher:    { color: 0x2dd4bf, speed: 40, life: 1.50, style: 'bolt',  home: 0.09 },
+            deathbringer: { color: 0xef4444, speed: 25, life: 1.80, style: 'spark', home: 0.09 },
+            phantasm:     { color: 0xf8fafc, speed: 28, life: 2.10, style: 'orb',   home: 0.10 },
+            gunnier:      { color: 0xa78bfa, speed: 35, life: 1.60, style: 'spark', home: 0.80 },
+            tombraider:   { color: 0xfb7185, speed: 31, life: 1.70, style: 'bolt',  home: 0.09 },
+            hammer:       { color: 0x64748b, speed: 30, life: 2.20, style: 'slug',  home: 0.15 },
+            warlord:    { color: 0xf87171, speed: 36, life: 1.90, style: 'slug',  home: 0.22 },
+            colossus:   { color: 0xa78bfa, speed: 32, life: 2.10, style: 'orb',   home: 0.20 },
+            nova:       { color: 0x67e8f9, speed: 40, life: 1.70, style: 'spark', home: 0.14 },
+            titan:      { color: 0x93c5fd, speed: 30, life: 1.80, style: 'slug',  home: 0.18 },
+            tempest:    { color: 0x38bdf8, speed: 50, life: 1.55, style: 'lance', home: 0.24 },
             fortress:   { color: 0xfbbf24, speed: 28, life: 2.20, style: 'orb',   home: 0.12 }
         };
         const _shotSeek = new THREE.Vector3();
@@ -3700,7 +3721,7 @@
         // Breakpoints at 10/12/20/22 keep the early game gentle and make deep runs bite.
         function keepTankSpacing(e) {
             if (!player || player.isDead || !e || e.isDead || !e.mesh) return;
-            const sizes = { berserker: 3.7, bomber: 3.3, juggernaut: 5.1, raider: 3.5, titan: 5.6, heavy: 4.1, fortress: 5.2, warlord: 4.7, colossus: 5.1, tempest: 3.8 };
+            const sizes = { berserker: 3.7, bomber: 3.3, deathbringer: 3.4, juggernaut: 5.1, hammer: 5.3, raider: 3.5, tombraider: 3.6, titan: 5.6, heavy: 4.1, heavier: 4.4, fortress: 5.2, warlord: 4.7, colossus: 5.1, tempest: 3.8 };
             const min = sizes[e.type] || 3.05;
             const dx = e.mesh.position.x - player.mesh.position.x;
             const dz = e.mesh.position.z - player.mesh.position.z;
@@ -3737,20 +3758,29 @@
 
         function getEnemyTypeForLevel(level) {
             const types = ['scout', 'soldier'];
+            if (level >= 2) types.push('scouter');
             if (level >= 3) types.push('heavy');
+            if (level >= 3) types.push('soldierpro');
             if (level >= 4) types.push('sniper');
+            if (level >= 4) types.push('heavier');
             if (level >= 5) types.push('healer');
+            if (level >= 5) types.push('picker');
             if (level >= 7) types.push('berserker');
-            if (level >= 6) types.push('bomber');   // v5
-            if (level >= 8) types.push('phantom');  // v5
-            if (level >= 10) types.push('gunner');  // v5
-            // v26.4: wasps from lv12; juggernaut delayed to lv16 (too tanky at 12)
+            if (level >= 6) types.push('bomber');
+            if (level >= 6) types.push('squsasher');
+            if (level >= 7) types.push('deathbringer');
+            if (level >= 8) types.push('phantom');
+            if (level >= 9) types.push('phantasm');
+            if (level >= 10) types.push('gunner');
+            if (level >= 11) types.push('gunnier');
             if (level >= 5) types.push('skirmisher');
             if (level >= 6) types.push('skirmisher');
             if (level >= 12) { types.push('wasp'); types.push('wasp'); }
             if (level >= 14) types.push('raider');
+            if (level >= 15) types.push('tombraider');
             if (level >= 16) types.push('raider');
             if (level >= 16) types.push('juggernaut');
+            if (level >= 17) types.push('hammer');
             if (level >= 18) types.push('raider');
             return types[Math.floor(Math.random() * types.length)];
         }
@@ -4710,7 +4740,7 @@
             enemy.damageMult = sc.dmg;
             enemy.speedMult = sc.spd;
             enemy.pointValue = Math.round((ENEMY_TYPES[type].points || 100) * sc.pts);
-            if (type === 'juggernaut') enemy.armorFlat = 3 + state.level * 0.12; // v26.4: less plating in the teens
+            if (type === 'juggernaut' || type === 'hammer') enemy.armorFlat = 3 + state.level * 0.12;
             // v26.7: elites from lv15 — a gold-tinted tougher twin, extra coins, still fair
             if (state.level >= 15 && type !== 'juggernaut' && Math.random() < 0.14) {
                 enemy.isElite = true;
@@ -4855,7 +4885,7 @@
                         e.lastHealTime = clock.getElapsedTime();
                     }
                     if (dist < 20) step(_sv1.set(-toPlayer.x, -toPlayer.z).normalize()); // FIX (Tier 3)
-                } else if (e.type === 'sniper') {
+                } else if (e.type === 'sniper' || e.type === 'picker') {
                     if (dist < 25) step(_sv1.set(-toPlayer.x, -toPlayer.z).normalize().multiplyScalar(0.5));
                     else if (dist > 30) step(_sv1.set(toPlayer.x, toPlayer.z).normalize()); // FIX (Tier 3)
                     e.aimAt(player.mesh.position, dt); // FIX (Tier 4)
@@ -4951,7 +4981,7 @@
                             if (!e.firing && now >= e.restUntil) e.firing = true;
                         }
                     }
-                } else if (e.type === 'skirmisher') { // v26: hit-and-run — holds a firing lane at ~22 units
+                } else if (e.type === 'skirmisher' || e.type === 'squsasher') {
                     if (e.wavePhase === undefined) e.wavePhase = Math.random() * Math.PI * 2;
                     if (dist > 22) {
                         step(_sv1.set(toPlayer.x, toPlayer.z).normalize());
@@ -4971,11 +5001,11 @@
                     step(_sv1.set(fx - fz * weave, fz + fx * weave).normalize()); // forward + perpendicular weave
                     e.aimAt(player.mesh.position, dt);
                     if (dist < 26 && enemyFireRoll(0.012 * (ENEMY_TYPES.wasp.fireRate || 1.1), dt)) shoot(e);
-                } else if (e.type === 'juggernaut') { // v26: never stops advancing
+                } else if (e.type === 'juggernaut' || e.type === 'hammer') {
                     step(_sv1.set(toPlayer.x, toPlayer.z).normalize());
                     e.aimAt(player.mesh.position, dt);
                     if (dist < 40 && enemyFireRoll(0.012 * (ENEMY_TYPES.juggernaut.fireRate || 0.3), dt)) shoot(e);
-                } else if (e.type === 'raider') { // v26.7: dash in, dump shots, peel off
+                } else if (e.type === 'raider' || e.type === 'tombraider') {
                     if (e.raidPhase === undefined) e.raidPhase = 0;
                     if (e.raidPhase === 0) {
                         step(_sv1.set(toPlayer.x, toPlayer.z).normalize());
@@ -4990,16 +5020,17 @@
                         if (dist > 28) e.raidPhase = 0;
                     }
                     e.aimAt(player.mesh.position, dt);
-                } else if (e.type === 'bomber') { // v5: kamikaze — sprint and detonate
+                } else if (e.type === 'bomber' || e.type === 'deathbringer') {
                     step(_sv1.set(toPlayer.x, toPlayer.z).normalize());
                     e.aimAt(player.mesh.position, dt);
+                    if (e.type === 'deathbringer' && dist < 28 && enemyFireRoll(0.014, dt)) shoot(e);
                     if (dist < 4.5) {
                         createExplosion(e.mesh.position.clone(), 6, 0xff4500, 'spark');
-                        player.takeDamage(ENEMY_TYPES.bomber.damage * (state.diffMult.dmg || 1) * (e.damageMult || 1)); // v10: difficulty + v26
+                        player.takeDamage((ENEMY_TYPES[e.type]?.damage || 30) * (state.diffMult.dmg || 1) * (e.damageMult || 1));
                         showDamageDirection(e.mesh.position.x, e.mesh.position.z);
                         e.die();
                     }
-                } else if (e.type === 'phantom') { // v5: cloaked skirmisher
+                } else if (e.type === 'phantom' || e.type === 'phantasm') {
                     if (dist > 20) step(_sv1.set(toPlayer.x, toPlayer.z).normalize());
                     e.aimAt(player.mesh.position, dt);
                     if (enemyFireRoll(0.010 * (ENEMY_TYPES.phantom.fireRate || 0.5), dt)) shoot(e); // v10
@@ -5007,7 +5038,7 @@
                     e.mesh.traverse(c => {
                         if (c.isMesh && c.material) { c.material.transparent = true; c.material.opacity = cloackO; }
                     });
-                } else if (e.type === 'gunner') { // v5: burst-fire support
+                } else if (e.type === 'gunner' || e.type === 'gunnier') {
                     if (dist > 22) step(_sv1.set(toPlayer.x, toPlayer.z).normalize());
                     e.aimAt(player.mesh.position, dt);
                     if ((e.burstLeft || 0) > 0) {
@@ -5044,7 +5075,7 @@
                 const b = bullets[i];
                 const ud = b.group.userData;
                 if (!ud.isPlayer && ud.home > 0 && player && !player.isDead) {
-                    const turn = Math.min(0.16, ud.home);
+                    const turn = Math.min(0.85, ud.home);
                     _shotSeek.set(
                         player.mesh.position.x - b.group.position.x,
                         (player.mesh.position.y + 1.2) - b.group.position.y,
