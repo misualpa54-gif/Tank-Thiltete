@@ -2,8 +2,8 @@
 // over https (see the inline PWA block at the end of the game HTML).
 // Pages are NETWORK-FIRST (a fresh open always gets the latest build; an open
 // session is never interrupted). Assets are cache-first. Fully playable offline.
-const CACHE = 'tank-realms-v28.7';
-const GAME = encodeURI('./tank_realms_v28.7.html');
+const CACHE = 'tank-realms-v28.8';
+const GAME = encodeURI('./tank_realms_v28.8.html');
 const ASSETS = ['./', './index.html', GAME, './manifest.webmanifest',
                 './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
 

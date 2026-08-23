@@ -613,17 +613,32 @@
             bottom: 120px;
             left: 50%;
             transform: translateX(-50%) translateY(20px);
-            background: rgba(0,0,0,0.8);
-            padding: 15px 30px;
-            border-radius: 12px;
+            background: rgba(0,0,0,0.88);
+            padding: 14px 26px 16px;
+            border-radius: 14px;
             color: white;
             text-align: center;
-            z-index: 15;
+            z-index: 80;
             opacity: 0;
             pointer-events: none;
             transition: all 0.4s ease;
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,214,80,0.55);
+            min-width: 200px;
+            max-width: 86vw;
+        }
+        #enemy-intro strong {
+            display: block;
+            color: #ffe566;
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            text-shadow: 0 1px 4px #000;
+        }
+        #enemy-intro p {
+            margin: 6px 0 0 0 !important;
+            opacity: 0.85 !important;
+            font-size: 13px !important;
         }
 
         #enemy-intro.show {
@@ -947,7 +962,7 @@
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">v28.7</div>
+        <div class="version-tag" id="version-tag">v28.8</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -4530,15 +4545,30 @@
         }
 
         function showEnemyIntro(type) {
+            if (!type || !ENEMY_TYPES[type]) return;
             if (state.enemiesIntroduced.has(type)) return;
             state.enemiesIntroduced.add(type);
-            
+            state._introQ = state._introQ || [];
+            state._introQ.push(type);
+            if (!state._introBusy) drainEnemyIntro();
+        }
+        function drainEnemyIntro() {
+            const q = state._introQ || [];
+            if (!q.length) { state._introBusy = false; return; }
+            state._introBusy = true;
+            const type = q.shift();
             const data = ENEMY_TYPES[type];
-            document.getElementById('enemy-name').textContent = 'New: ' + data.name;
-            document.getElementById('enemy-desc').textContent = data.desc;
-            const intro = document.getElementById('enemy-intro');
-            intro.classList.add('show');
-            setTimeout(() => intro.classList.remove('show'), 1100);
+            try {
+                document.getElementById('enemy-name').textContent = 'NEW  ·  ' + data.name;
+                document.getElementById('enemy-desc').textContent = data.desc || '';
+                const intro = document.getElementById('enemy-intro');
+                intro.classList.add('show');
+                clearTimeout(intro._t);
+                intro._t = setTimeout(() => {
+                    intro.classList.remove('show');
+                    setTimeout(drainEnemyIntro, 280);
+                }, 2200);
+            } catch (err) { state._introBusy = false; }
         }
 
         function spawnSupplyDrop() {
@@ -4739,6 +4769,7 @@
         // v26: single place where an enemy is built and level-scaled, so every spawn
         // path (spawner, wasp packs, boss reinforcements) ramps identically.
         function makeScaledEnemy(type, x, z) {
+            try { showEnemyIntro(type); } catch (err) {}
             const sc = enemyLevelScale();
             const enemy = new Tank(ENEMY_TYPES[type].color, false, type);
             let hpMult = sc.hp;
