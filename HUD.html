@@ -402,6 +402,9 @@
             pointer-events: none;
             position: relative !important;
             z-index: 1;
+            background: transparent !important;
+            outline: none;
+            box-shadow: none;
         }
                 @keyframes homeFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
         .home-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 0; width: 100%; align-items: stretch; }
@@ -4621,86 +4624,65 @@
 
         let _menuTank = null;
         function buildShowcaseTank(color) {
-            const scale = 1;
             const group = new THREE.Group();
-            const darkColor = new THREE.Color(color).multiplyScalar(0.6);
-            const bodyMat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.26, metalness: 0.78, envMapIntensity: 1.15 });
+            const bodyMat = new THREE.MeshStandardMaterial({
+                color: color, roughness: 0.22, metalness: 0.84, envMapIntensity: 1.25
+            });
             bodyMat.userData.skin = true;
-            const hull = new THREE.Mesh(new THREE.BoxGeometry(2.6 * scale, 0.9 * scale, 3.8 * scale), bodyMat);
-            hull.position.y = 0.65 * scale;
-            hull.castShadow = true;
-            hull.receiveShadow = true;
-            group.add(hull);
-            const topPlate = new THREE.Mesh(new THREE.BoxGeometry(2.2 * scale, 0.35 * scale, 3.2 * scale), bodyMat);
-            topPlate.position.y = 1.25 * scale;
-            topPlate.castShadow = true;
-            group.add(topPlate);
-            const frontArmor = new THREE.Mesh(new THREE.BoxGeometry(2.4 * scale, 0.6 * scale, 0.8 * scale), bodyMat);
-            frontArmor.position.set(0, 0.85 * scale, 1.85 * scale);
-            frontArmor.rotation.x = -0.35;
-            frontArmor.castShadow = true;
-            group.add(frontArmor);
-            const trackMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.9, metalness: 0.3 });
-            const guardMat = new THREE.MeshStandardMaterial({ color: darkColor, roughness: 0.5, metalness: 0.5 });
-            guardMat.userData.skinDark = true;
-            const wheelMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.7, metalness: 0.4 });
-            const wheelGeo = new THREE.CylinderGeometry(0.38 * scale, 0.38 * scale, 0.28 * scale, 16);
-            [-1, 1].forEach(side => {
-                const track = new THREE.Mesh(new THREE.BoxGeometry(0.65 * scale, 0.95 * scale, 4.3 * scale), trackMat);
-                track.position.set(side * 1.55 * scale, 0.5 * scale, 0);
-                track.castShadow = true;
-                group.add(track);
-                const guard = new THREE.Mesh(new THREE.BoxGeometry(0.75 * scale, 0.18 * scale, 4.5 * scale), guardMat);
-                guard.position.set(side * 1.55 * scale, 1.0 * scale, 0);
-                group.add(guard);
-                for (let i = -1.5; i <= 1.5; i += 0.75) {
-                    const wheel = new THREE.Mesh(wheelGeo, wheelMat);
+            const dark = new THREE.Color(color).multiplyScalar(0.55);
+            const darkMat = new THREE.MeshStandardMaterial({
+                color: dark, roughness: 0.32, metalness: 0.72, envMapIntensity: 1.05
+            });
+            darkMat.userData.skinDark = true;
+            const steel = new THREE.MeshStandardMaterial({ color: 0x3e4248, roughness: 0.22, metalness: 0.9 });
+            const trackMat = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.48, metalness: 0.42 });
+            const wheelMat = new THREE.MeshStandardMaterial({ color: 0x242424, roughness: 0.35, metalness: 0.55 });
+            const add = (mesh, parent, x, y, z, sx, sy, sz) => {
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                if (sx) mesh.scale.set(sx, sy, sz);
+                mesh.position.set(x, y, z);
+                (parent || group).add(mesh);
+                return mesh;
+            };
+            add(new THREE.Mesh(new THREE.SphereGeometry(1.28, 32, 22), bodyMat), group, 0, 0.78, 0, 1.22, 0.46, 1.58);
+            const belly = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.76, 3.05, 24), bodyMat);
+            belly.rotation.x = Math.PI / 2;
+            add(belly, group, 0, 0.7, 0, 1.38, 1, 0.52);
+            add(new THREE.Mesh(new THREE.SphereGeometry(0.82, 24, 18), bodyMat), group, 0, 0.7, 1.48, 1.22, 0.42, 0.72);
+            add(new THREE.Mesh(new THREE.SphereGeometry(0.7, 20, 16), bodyMat), group, 0, 0.68, -1.42, 1.18, 0.4, 0.62);
+            const turretPivot = new THREE.Group();
+            turretPivot.name = 'turretPivot';
+            turretPivot.position.y = 1.12;
+            group.add(turretPivot);
+            add(new THREE.Mesh(new THREE.SphereGeometry(0.95, 32, 20, 0, Math.PI * 2, 0, Math.PI * 0.56), bodyMat), turretPivot, 0, 0.08, 0.08, 1.02, 0.92, 1.08);
+            add(new THREE.Mesh(new THREE.CylinderGeometry(0.86, 0.98, 0.2, 28), bodyMat), turretPivot, 0, 0.02, 0.06);
+            add(new THREE.Mesh(new THREE.SphereGeometry(0.3, 18, 14), steel), turretPivot, 0, 0.3, 0.86, 1, 0.82, 1.15);
+            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.115, 3.15, 18), steel);
+            barrel.rotation.x = Math.PI / 2;
+            add(barrel, turretPivot, 0, 0.3, 2.38);
+            const brake = new THREE.Mesh(new THREE.CylinderGeometry(0.155, 0.12, 0.36, 14), steel);
+            brake.rotation.x = Math.PI / 2;
+            add(brake, turretPivot, 0, 0.3, 3.96);
+            add(new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2), darkMat), turretPivot, -0.18, 0.7, -0.12);
+            const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.01, 1.28, 8), steel);
+            antenna.rotation.z = 0.14;
+            add(antenna, turretPivot, -0.48, 1.02, -0.32);
+            [-1, 1].forEach(function (side) {
+                const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 3.35, 18), trackMat);
+                rail.rotation.x = Math.PI / 2;
+                add(rail, group, side * 1.36, 0.4, 0);
+                add(new THREE.Mesh(new THREE.SphereGeometry(0.4, 16, 14), trackMat), group, side * 1.36, 0.4, -1.68);
+                add(new THREE.Mesh(new THREE.SphereGeometry(0.4, 16, 14), trackMat), group, side * 1.36, 0.4, 1.68);
+                const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 3.2, 10), darkMat);
+                skirt.rotation.x = Math.PI / 2;
+                add(skirt, group, side * 1.5, 0.78, 0, 1, 1, 1);
+                for (let i = -1.45; i <= 1.45; i += 0.58) {
+                    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.2, 18), wheelMat);
                     wheel.rotation.z = Math.PI / 2;
-                    wheel.position.set(side * 1.25 * scale, 0.38 * scale, i * scale);
-                    group.add(wheel);
+                    add(wheel, group, side * 1.36, 0.34, i);
                 }
             });
-            const turretPivot = new THREE.Group();
-            turretPivot.position.y = 1.4 * scale;
-            group.add(turretPivot);
-            const turretBase = new THREE.Mesh(new THREE.CylinderGeometry(0.95 * scale, 1.05 * scale, 0.45 * scale, 16), bodyMat);
-            turretBase.position.y = 0.22 * scale;
-            turretPivot.add(turretBase);
-            const turret = new THREE.Mesh(new THREE.BoxGeometry(1.5 * scale, 0.75 * scale, 2.1 * scale), bodyMat);
-            turret.position.set(0, 0.6 * scale, 0.2 * scale);
-            turret.castShadow = true;
-            turretPivot.add(turret);
-            const mantletMat = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.5, metalness: 0.7 });
-            const mantlet = new THREE.Mesh(new THREE.CylinderGeometry(0.38 * scale, 0.42 * scale, 0.55 * scale, 12), mantletMat);
-            mantlet.rotation.x = Math.PI / 2;
-            mantlet.position.set(0, 0.55 * scale, 1.25 * scale);
-            turretPivot.add(mantlet);
-            const barrelMat = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.3, metalness: 0.8 });
-            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.13 * scale, 0.16 * scale, 3.4 * scale, 12), barrelMat);
-            barrel.rotation.x = Math.PI / 2;
-            barrel.position.set(0, 0.55 * scale, 1.25 * scale + 1.7 * scale);
-            turretPivot.add(barrel);
-            const muzzle = new THREE.Mesh(new THREE.CylinderGeometry(0.2 * scale, 0.15 * scale, 0.35 * scale, 8), barrelMat);
-            muzzle.rotation.x = Math.PI / 2;
-            muzzle.position.set(0, 0.55 * scale, 1.25 * scale + 3.4 * scale + 0.18 * scale);
-            turretPivot.add(muzzle);
-            const hatch = new THREE.Mesh(new THREE.CylinderGeometry(0.28 * scale, 0.28 * scale, 0.18 * scale, 12),
-                new THREE.MeshStandardMaterial({ color: darkColor, roughness: 0.4, metalness: 0.6 }));
-            hatch.material.userData.skinDark = true;
-            hatch.position.set(0, 1.0 * scale, -0.35 * scale);
-            turretPivot.add(hatch);
-            const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.02 * scale, 0.02 * scale, 1.5 * scale, 6),
-                new THREE.MeshStandardMaterial({ color: 0x333333 }));
-            antenna.position.set(-0.5 * scale, 1.3 * scale, -0.6 * scale);
-            antenna.rotation.z = 0.15;
-            turretPivot.add(antenna);
-            const ring = new THREE.Mesh(
-                new THREE.RingGeometry(2.5, 2.8, 32),
-                new THREE.MeshBasicMaterial({ color: 0xfde047, transparent: true, opacity: 0.62, side: THREE.DoubleSide })
-            );
-            ring.rotation.x = -Math.PI / 2;
-            ring.position.y = 0.08;
-            group.add(ring);
             return group;
         }
         function tintShowcaseTank(color) {
@@ -4730,7 +4712,7 @@
                 const spin = () => {
                     if (!menuTankVisible() || !_menuTank) { _menuTank.raf = 0; return; }
                     _menuTank.mesh.rotation.y += 0.007;
-                    const turr = _menuTank.mesh.children.find(function (c) { return c.isGroup; });
+                    const turr = _menuTank.mesh.getObjectByName('turretPivot');
                     if (turr) turr.rotation.y = Math.sin(performance.now() * 0.00045) * 0.18;
                     _menuTank.renderer.render(_menuTank.scene, _menuTank.camera);
                     _menuTank.raf = requestAnimationFrame(spin);
@@ -4790,23 +4772,20 @@
             const metal = new THREE.MeshStandardMaterial({ color: 0x6a727c, metalness: 0.85, roughness: 0.32 });
             const metalDark = new THREE.MeshStandardMaterial({ color: 0x3a4048, metalness: 0.8, roughness: 0.4 });
             const goldTrim = new THREE.MeshStandardMaterial({ color: 0xC8A86B, metalness: 0.9, roughness: 0.28 });
-            [[4.2, 0.18, 0], [3.2, 0.16, 0.16], [2.2, 0.14, 0.30]].forEach(function (t) {
-                const pad = new THREE.Mesh(new THREE.CylinderGeometry(t[0], t[0] + 0.12, t[1], 48), t[0] > 3.5 ? metalDark : metal);
-                pad.position.y = t[2];
-                pad.receiveShadow = true;
-                pad.castShadow = true;
-                sc.add(pad);
-                const ring = new THREE.Mesh(new THREE.TorusGeometry(t[0] - 0.08, 0.035, 10, 48), goldTrim);
-                ring.rotation.x = Math.PI / 2;
-                ring.position.y = t[2] + t[1] * 0.5;
-                sc.add(ring);
-            });
+            const disc = new THREE.Mesh(new THREE.CylinderGeometry(2.15, 2.25, 0.08, 48), metal);
+            disc.position.y = 0.02;
+            disc.receiveShadow = true;
+            sc.add(disc);
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(2.05, 0.03, 10, 48), goldTrim);
+            ring.rotation.x = Math.PI / 2;
+            ring.position.y = 0.07;
+            sc.add(ring);
             const ground = new THREE.Mesh(
-                new THREE.CircleGeometry(5.2, 40),
-                new THREE.ShadowMaterial({ opacity: 0.42 })
+                new THREE.CircleGeometry(3.2, 40),
+                new THREE.ShadowMaterial({ opacity: 0.38 })
             );
             ground.rotation.x = -Math.PI / 2;
-            ground.position.y = -0.02;
+            ground.position.y = -0.01;
             ground.receiveShadow = true;
             sc.add(ground);
             for (let s = 0; s < 5; s++) {
@@ -4820,7 +4799,7 @@
                 sc.add(screen);
             }
             const mesh = buildShowcaseTank(selectedSkinColor());
-            mesh.position.y = 0.42;
+            mesh.position.y = 0.08;
             sc.add(mesh);
             _menuTank = { renderer: renderer, scene: sc, camera: cam, mesh: mesh, canvas: canvas, raf: 0 };
             syncMenuTankPreview();
