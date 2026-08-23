@@ -947,7 +947,7 @@
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">v28.2</div>
+        <div class="version-tag" id="version-tag">v28.3</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -1301,24 +1301,24 @@
         };
         // v27.4: each enemy shot has its own look, speed, hang-time, and (for some) a seek
         const ENEMY_SHOT = {
-            scout:      { color: 0xffe066, speed: 40, life: 1.45, style: 'spark', home: 0.10 },
-            soldier:    { color: 0xff3b3b, speed: 48, life: 1.50, style: 'bolt',  home: 0.18 },
-            heavy:      { color: 0xff8a3d, speed: 30, life: 1.90, style: 'slug',  home: 0.16 },
-            sniper:     { color: 0xd8b4fe, speed: 62, life: 1.85, style: 'lance', home: 0.12 },
-            healer:     { color: 0x4ade80, speed: 34, life: 1.40, style: 'orb',   home: 0.08 },
-            berserker:  { color: 0xfb7185, speed: 50, life: 1.35, style: 'bolt',  home: 0.10 },
-            bomber:     { color: 0xf43f5e, speed: 38, life: 1.20, style: 'spark', home: 0.00 },
-            phantom:    { color: 0xcbd5e1, speed: 44, life: 1.55, style: 'orb',   home: 0.20 },
-            gunner:     { color: 0xc084fc, speed: 52, life: 1.30, style: 'spark', home: 0.16 },
-            skirmisher: { color: 0x2dd4bf, speed: 48, life: 1.45, style: 'bolt',  home: 0.14 },
-            wasp:       { color: 0xfde047, speed: 56, life: 1.25, style: 'spark', home: 0.08 },
-            raider:     { color: 0xfb7185, speed: 54, life: 1.30, style: 'bolt',  home: 0.14 },
-            juggernaut: { color: 0x94a3b8, speed: 28, life: 2.40, style: 'slug',  home: 0.26 },
-            warlord:    { color: 0xf87171, speed: 36, life: 1.90, style: 'slug',  home: 0.22 },
-            colossus:   { color: 0xa78bfa, speed: 32, life: 2.10, style: 'orb',   home: 0.20 },
-            nova:       { color: 0x67e8f9, speed: 40, life: 1.70, style: 'spark', home: 0.14 },
-            titan:      { color: 0x93c5fd, speed: 30, life: 1.80, style: 'slug',  home: 0.18 },
-            tempest:    { color: 0x38bdf8, speed: 50, life: 1.55, style: 'lance', home: 0.24 },
+            scout:      { color: 0xffe066, speed: 38, life: 1.40, style: 'spark', home: 0.00 },
+            soldier:    { color: 0xff3b3b, speed: 44, life: 1.45, style: 'bolt',  home: 0.00 },
+            heavy:      { color: 0xff8a3d, speed: 28, life: 1.85, style: 'slug',  home: 0.00 },
+            sniper:     { color: 0xd8b4fe, speed: 58, life: 1.80, style: 'lance', home: 0.00 },
+            healer:     { color: 0x4ade80, speed: 32, life: 1.35, style: 'orb',   home: 0.00 },
+            berserker:  { color: 0xfb7185, speed: 46, life: 1.30, style: 'bolt',  home: 0.00 },
+            bomber:     { color: 0xf43f5e, speed: 36, life: 1.20, style: 'spark', home: 0.00 },
+            phantom:    { color: 0xcbd5e1, speed: 26, life: 2.10, style: 'orb',   home: 0.09 },
+            gunner:     { color: 0xc084fc, speed: 46, life: 1.25, style: 'spark', home: 0.00 },
+            skirmisher: { color: 0x2dd4bf, speed: 44, life: 1.40, style: 'bolt',  home: 0.00 },
+            wasp:       { color: 0xfde047, speed: 50, life: 1.20, style: 'spark', home: 0.00 },
+            raider:     { color: 0xfb7185, speed: 48, life: 1.25, style: 'bolt',  home: 0.00 },
+            juggernaut: { color: 0x94a3b8, speed: 24, life: 2.40, style: 'slug',  home: 0.16 },
+            warlord:    { color: 0xf87171, speed: 32, life: 1.90, style: 'slug',  home: 0.14 },
+            colossus:   { color: 0xa78bfa, speed: 30, life: 2.10, style: 'orb',   home: 0.12 },
+            nova:       { color: 0x67e8f9, speed: 38, life: 1.70, style: 'spark', home: 0.00 },
+            titan:      { color: 0x93c5fd, speed: 28, life: 1.80, style: 'slug',  home: 0.00 },
+            tempest:    { color: 0x38bdf8, speed: 36, life: 1.70, style: 'lance', home: 0.14 },
             fortress:   { color: 0xfbbf24, speed: 28, life: 2.20, style: 'orb',   home: 0.12 }
         };
         const _shotSeek = new THREE.Vector3();
@@ -1328,11 +1328,7 @@
         }
         function enemyHomeRate(source) {
             if (!source || source.isPlayer) return 0;
-            if (source.isBoss || source.type === 'juggernaut' || source.shotHome) {
-                const h = enemyShotProfile(source).home;
-                return h > 0 ? h : 0.34;
-            }
-            return 0;
+            return enemyShotProfile(source).home || 0;
         }
 
         const CONFIG = {
@@ -1867,10 +1863,8 @@
                     ambientTimer = setInterval(() => {
                         if (!state.soundEnabled || !audioCtx) return;
                         if (state.gamePhase !== 'playing' || state.isChoosingUpgrade || state.marketOpen) return;
-                        if (type === 'leaves' || type === 'fireflies') { if (Math.random() < 0.28) noise(0.35, 420, 180, 0.008); }
-                        else if (type === 'embers') { if (Math.random() < 0.3) noise(0.45, 160, 60, 0.016); }
-                        else if (type === 'sparkles') { if (Math.random() < 0.22) tone(280 + Math.random() * 80, 0.35, 'sine', 0.006, 220); }
-                        else if (type === 'snow' || type === 'sand') { if (Math.random() < 0.25) noise(0.7, 500, 280, 0.01); }
+                        if (type === 'embers') { if (Math.random() < 0.2) noise(0.4, 140, 50, 0.01); }
+                        else if (type === 'snow' || type === 'sand') { if (Math.random() < 0.18) noise(0.6, 400, 220, 0.007); }
                     }, 3200);
                 },
                 ambientStop() {
@@ -1895,12 +1889,8 @@
                         const root = dark ? 49 : 55;
                         const scale = dark ? [0, 3, 5, 7, 10] : [0, 2, 4, 7, 9];
                         const s = m.step++;
-                        if (s % 2 === 0) tone(root, 0.28, 'sawtooth', 0.028 + m.intensity * 0.02, root * 0.98);
-                        if (s % 8 === 0) { [1, 1.5, dark ? 2.4 : 2].forEach(r => tone(root * 2 * r, 1.6, 'sine', 0.011)); }
-                        if (s % 2 === 1 && Math.random() < 0.35 + m.intensity * 0.4) {
-                            const semis = scale[Math.floor(Math.random() * scale.length)] + 12 * (2 + (Math.random() < 0.3 ? 1 : 0));
-                            tone(root * Math.pow(2, semis / 12), 0.22, 'triangle', 0.014 + m.intensity * 0.012);
-                        }
+                        if (s % 4 === 0) tone(root, 0.4, 'sine', 0.012 + m.intensity * 0.01, root * 0.97);
+                        if (s % 16 === 0) tone(root * 2, 1.8, 'sine', 0.007);
                         if (boss && s % 4 === 0) tone(root * 0.5, 0.3, 'square', 0.03, root * 0.45);
                     }, 260);
                 },
@@ -3069,7 +3059,7 @@
                 this.turretPivot.rotation.y += diff * (1 - Math.pow(1 - k, dt * 60));
             }
 
-            takeDamage(amount) {
+            takeDamage(amount, opts) {
                 // v4: brief invulnerability window (after Second Wind)
                 if (this.isPlayer && (state.runTime || 0) < (state.invulnUntil || 0)) return;
                 if (this.isPlayer && state.shieldUp) { // v24: Shield Generator absorbs a hit
@@ -3089,7 +3079,7 @@
                     incoming = incoming - (this.armorFlat || 0);
                 }
                 const actualDamage = Math.max(this.isPlayer ? 3 : 1, incoming);
-                if (this.isPlayer) { SFX.hurt(); SFX.vibrate(35); }
+                if (this.isPlayer && !(opts && opts.silent)) { SFX.hurt(); SFX.vibrate(35); }
                 this.hp -= actualDamage;
                 this.updateHpBar();
                 if (this.isBoss) try { updateBossBar(); } catch (err) {}
@@ -4736,9 +4726,7 @@
                 });
                 if (enemy.updateHpBar) enemy.updateHpBar();
             }
-            // v27.4: juggernaut + sniper/phantom always seek; a few others roll it
-            if (type === 'juggernaut' || type === 'sniper' || type === 'phantom') enemy.shotHome = true;
-            else if (type !== 'wasp' && type !== 'bomber' && type !== 'healer' && Math.random() < 0.28) enemy.shotHome = true;
+            enemy.shotHome = (enemyShotProfile(enemy).home || 0) > 0;
             enemy.mesh.position.set(x, 0, z);
             enemies.push(enemy);
             return enemy;
@@ -4789,7 +4777,7 @@
                     if (state._presenceAcc >= 2) {
                         const tick = Math.floor(state._presenceAcc);
                         state._presenceAcc -= tick;
-                        player.takeDamage(tick);
+                        player.takeDamage(tick, { silent: true });
                         try { updateHUD(); } catch (err) {}
                         if (player.hp <= 0) endGame();
                     }
@@ -5055,8 +5043,8 @@
             for (let i = bullets.length - 1; i >= 0; i--) {
                 const b = bullets[i];
                 const ud = b.group.userData;
-                if (!ud.isPlayer && player && !player.isDead) {
-                    const turn = Math.min(0.26, ud.home || 0.07);
+                if (!ud.isPlayer && ud.home > 0 && player && !player.isDead) {
+                    const turn = Math.min(0.16, ud.home);
                     _shotSeek.set(
                         player.mesh.position.x - b.group.position.x,
                         (player.mesh.position.y + 1.2) - b.group.position.y,
