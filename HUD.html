@@ -194,21 +194,20 @@
         /* v7: home screen */
         .home-logo { font-size: 64px; animation: homeFloat 3s ease-in-out infinite; text-shadow: 0 0 40px rgba(102,126,234,0.7); }
                 #start-screen {
-            justify-content: stretch;
+            justify-content: center;
             overflow-x: hidden;
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
-            padding: max(10px, env(safe-area-inset-top)) 14px max(16px, env(safe-area-inset-bottom));
+            padding: max(8px, env(safe-area-inset-top)) 16px max(12px, env(safe-area-inset-bottom));
         }
         .home-wrap {
-            width: min(100%, 440px);
-            min-height: 100%;
+            width: min(100%, 360px);
             margin: 0 auto;
             display: flex;
             flex-direction: column;
             align-items: stretch;
-            justify-content: space-between;
-            gap: 12px;
+            justify-content: center;
+            gap: 10px;
             position: relative;
             z-index: 3;
         }
@@ -216,71 +215,55 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 2px;
-            flex: 0 0 auto;
+            gap: 0;
         }
-        .home-titles { text-align: center; }
+        .home-titles { text-align: center; width: 100%; }
         #start-screen h1 {
-            font-size: clamp(1.85rem, 8vw, 2.7rem);
-            letter-spacing: 0.28em;
+            font-size: clamp(1.55rem, 6.6vw, 2.1rem);
+            letter-spacing: 0.18em;
             margin: 0;
-            line-height: 1.05;
+            line-height: 1.1;
         }
         #start-screen h2 {
-            margin: 4px 0 0;
-            font-size: 0.72rem;
-            letter-spacing: 0.34em;
+            margin: 2px 0 0;
+            font-size: 0.68rem;
+            letter-spacing: 0.22em;
         }
         .home-actions {
             width: 100%;
-            display: flex;
-            flex-direction: column;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
             gap: 8px;
             position: relative;
             z-index: 5;
-            flex: 0 0 auto;
         }
         .home-actions .btn,
-        .home-actions-grid .btn,
         #start-screen #btn-shop-home {
             margin-top: 0 !important;
             width: 100%;
             min-width: 0 !important;
-            flex: none;
-            padding: 13px 10px;
-            font-size: 14px;
-            letter-spacing: 1.4px;
-        }
-        .home-cta {
-            padding: 16px 12px !important;
-            font-size: 17px !important;
-            letter-spacing: 0.22em !important;
-        }
-        .home-actions-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 8px;
-            width: 100%;
-        }
-        .home-actions-grid .btn {
-            padding: 13px 4px;
-            font-size: 12px;
-            letter-spacing: 0.6px;
+            height: 48px;
+            padding: 0 8px;
+            font-size: 13px;
+            letter-spacing: 1.1px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         .home-logo.tank-mark, .pause-tank-mark {
-            width: min(72vw, 240px);
-            height: min(26vh, 168px);
+            width: min(58vw, 196px);
+            height: min(18vh, 120px);
             display: flex;
             align-items: center;
             justify-content: center;
             position: relative;
             z-index: 1;
-            overflow: hidden;
+            overflow: visible;
             flex: 0 0 auto;
-            border-radius: 16px;
-            background: linear-gradient(180deg, rgba(74,85,96,0.35), rgba(20,24,28,0.2));
-            border: 1.5px solid rgba(209,184,125,0.28);
-            box-shadow: 0 8px 18px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.12);
+            background: none;
+            border: none;
+            box-shadow: none;
+            border-radius: 0;
         }
         .pause-tank-mark { width: 150px; height: 106px; margin-bottom: 2px; max-height: 14vh; }
         #menu-tank-view {
@@ -292,7 +275,7 @@
             z-index: 1;
         }
                 @keyframes homeFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
-        .home-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 0; width: 100%; }
+        .home-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 0; width: 100%; align-items: stretch; }
         .home-stat { display: flex; flex-direction: column; align-items: center; }
         .home-num { color: #fff; font-size: 18px; font-weight: 800; }
         .home-label { color: rgba(255,255,255,0.55); font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 4px; }
@@ -1090,8 +1073,10 @@
         .home-stat {
             min-width: 0;
             width: 100%;
-            padding: 10px 6px 8px;
+            min-height: 48px;
+            padding: 6px 4px;
             border-radius: 12px;
+            justify-content: center;
             background: linear-gradient(180deg, #4a5560 0%, #3A444C 40%, #1c2126 100%);
             border: 1.5px solid rgba(192,198,210,0.35);
             box-shadow: 0 4px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.18);
@@ -1399,16 +1384,12 @@
                 <div class="home-stat"><span class="home-num" id="home-coins">0</span><span class="home-label">Gold</span></div>
             </div>
             <div class="home-actions">
-                <button class="btn home-cta" id="btn-casual">Casual</button>
-                <div class="home-actions-grid">
-                    <button class="btn mode-btn" id="btn-levels">Levels</button>
-                    <button class="btn" id="btn-shop-home">Armory</button>
-                    <button class="btn" id="btn-awards">Awards</button>
-                </div>
+                <button class="btn" id="btn-casual">Casual</button>
+                <button class="btn mode-btn" id="btn-levels">Levels</button>
+                <button class="btn" id="btn-shop-home">Armory</button>
+                <button class="btn" id="btn-awards">Awards</button>
             </div>
-            <div class="game-info">Left: move · Right: fire</div>
         </div>
-        <div class="version-tag" id="version-tag">HUD 12</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
