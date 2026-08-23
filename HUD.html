@@ -81,13 +81,13 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 2px;
+            gap: 3px;
             flex: 1 1 0;
             width: auto;
             min-width: 0;
             min-height: 0;
             height: 100%;
-            padding: 4px 3px 5px;
+            padding: 4px 6px;
             border-radius: 12px;
             background: linear-gradient(180deg, #4a5560 0%, #3A444C 40%, #1c2126 100%);
             box-shadow: 0 4px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.18);
@@ -96,16 +96,23 @@
         .res-gold { border: 1.5px solid rgba(192, 198, 210, 0.45); }
         .res-ico { display:none; width: 16px; height: 16px; object-fit: contain; flex: 0 0 16px; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.55)); }
         .res-body { min-width: 0; width: 100%; display: flex; flex-direction: column; align-items: center; }
+        .res-row {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            width: 100%;
+            gap: 6px;
+        }
         .res-lab {
-            font-size: 8px;
+            font-size: 12px;
             color: #D1B87D;
-            font-weight: 700;
-            letter-spacing: 0.6px;
+            font-weight: 800;
+            letter-spacing: 0.8px;
             line-height: 1.05;
             text-align: center;
         }
         .res-val {
-            font-size: 13px;
+            font-size: 16px;
             color: #fff;
             font-weight: 800;
             font-variant-numeric: tabular-nums;
@@ -116,8 +123,8 @@
             /* equal tiles now share .res-card */
         }
         .res-card .meter-track {
-            width: 90%;
-            height: 18px;
+            width: 100%;
+            height: 22px;
             border-radius: 8px;
         }
         .status-lv {
@@ -185,44 +192,106 @@
         .pb-chip b { color: #fff; }
 
         /* v7: home screen */
-        .menu-tank-bg {
-            position: absolute;
-            inset: 0;
-            overflow: hidden;
-            pointer-events: none;
-            z-index: 0;
-        }
-        .menu-tank-bg .tank-svg {
-            position: absolute;
-            left: 50%;
-            top: 46%;
-            width: min(92vw, 540px);
-            height: auto;
-            transform: translate(-50%, -50%);
-            opacity: 0.18;
-            filter: drop-shadow(0 18px 24px rgba(0,0,0,0.55));
-        }
-        #start-screen > *:not(.menu-tank-bg),
-        #pause-screen > *:not(.menu-tank-bg) { position: relative; z-index: 1; }
         .home-logo { font-size: 64px; animation: homeFloat 3s ease-in-out infinite; text-shadow: 0 0 40px rgba(102,126,234,0.7); }
-        .home-logo.tank-mark {
-            width: 108px;
-            height: 64px;
+        .home-logo.tank-mark, .pause-tank-mark {
+            width: 140px;
+            height: 100px;
             display: flex;
             align-items: center;
             justify-content: center;
+            animation: homeFloat 3s ease-in-out infinite;
         }
-        .home-logo.tank-mark .tank-svg {
-            width: 100%;
-            height: 100%;
-            filter: drop-shadow(0 8px 16px rgba(209,184,125,0.35));
+        .pause-tank-mark { width: 118px; height: 84px; margin-bottom: 2px; }
+        .gtank { position: relative; width: 130px; height: 88px; perspective: 420px; }
+        .gt-ring {
+            position: absolute;
+            left: 50%;
+            bottom: 4px;
+            width: 96px;
+            height: 28px;
+            transform: translateX(-50%);
+            border: 3px solid rgba(253,224,71,0.8);
+            border-radius: 50%;
+            box-shadow: 0 0 10px rgba(253,224,71,0.35);
         }
-        .pause-tank-mark {
-            width: 86px;
-            height: 50px;
-            margin-bottom: 4px;
+        .gt-stage {
+            position: absolute;
+            left: 50%;
+            top: 10px;
+            width: 64px;
+            height: 68px;
+            margin-left: -32px;
+            transform: rotateX(58deg) rotateZ(-42deg);
+            transform-style: preserve-3d;
         }
-        .pause-tank-mark .tank-svg { width: 100%; height: 100%; filter: drop-shadow(0 6px 12px rgba(209,184,125,0.3)); }
+        .gt-track {
+            position: absolute;
+            top: 2px;
+            bottom: 2px;
+            width: 11px;
+            background: linear-gradient(180deg, #3a3a3a, #111);
+            border: 1px solid #000;
+            box-shadow: inset 0 1px 0 #555;
+        }
+        .gt-tl { left: 0; }
+        .gt-tr { right: 0; }
+        .gt-hull {
+            position: absolute;
+            left: 11px;
+            right: 11px;
+            top: 14px;
+            bottom: 8px;
+            background: linear-gradient(180deg, #f6d56a 0%, #e0b33a 45%, #b8860b 100%);
+            border: 1px solid #8a6910;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.45), 0 3px 6px rgba(0,0,0,0.35);
+        }
+        .gt-plate {
+            position: absolute;
+            left: 16px;
+            right: 16px;
+            top: 10px;
+            height: 10px;
+            background: linear-gradient(180deg, #f8de88, #c99618);
+            border: 1px solid #8a6910;
+        }
+        .gt-turret {
+            position: absolute;
+            left: 18px;
+            top: 18px;
+            width: 28px;
+            height: 30px;
+            background: linear-gradient(180deg, #f3cc4e, #c49214);
+            border: 1px solid #8a6910;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.35);
+        }
+        .gt-hatch {
+            position: absolute;
+            left: 26px;
+            top: 22px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #8a6910;
+            border: 1px solid #f6d56a;
+        }
+        .gt-barrel {
+            position: absolute;
+            left: 29px;
+            top: -22px;
+            width: 6px;
+            height: 28px;
+            background: linear-gradient(90deg, #666, #333);
+            border-radius: 2px;
+        }
+        .gt-muzzle {
+            position: absolute;
+            left: 27px;
+            top: -28px;
+            width: 10px;
+            height: 8px;
+            background: #444;
+            border-radius: 2px;
+        }
         @keyframes homeFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
         .home-stats { display: flex; gap: 34px; margin: 18px 0 8px; }
         .home-stat { display: flex; flex-direction: column; align-items: center; }
@@ -316,7 +385,7 @@
 
         /* One row of equal tiles; pause top-right; radar under pause */
         #hud-top {
-            --hud-h: 74px;
+            --hud-h: 56px;
             --pause-s: 52px;
             --radar-s: 96px;
             position: absolute;
@@ -339,14 +408,14 @@
             display: flex;
             flex-direction: column;
             gap: 4px;
-            flex: 0 0 20%;
-            min-width: 72px;
-            max-width: 96px;
+            flex: 0 0 22%;
+            min-width: 70px;
+            max-width: 88px;
             height: 100%;
         }
-        .hud-stack .res-card { flex: 1 1 0; height: auto; }
-        .res-lv { flex: 0 0 15%; min-width: 52px; max-width: 70px; }
-        .res-xp, .res-hp { flex: 1.7 1 0; min-width: 0; }
+        .hud-stack .res-card { flex: 1 1 0; height: auto; padding: 3px 6px; }
+        .res-lv { flex: 0 0 14%; min-width: 48px; max-width: 62px; }
+        .res-xp, .res-hp { flex: 1.15 1 0; min-width: 0; padding: 5px 8px 6px; }
         .hud-left, .hud-center { display: contents; }
         .hud-top-right { display: none; }
         .hud-corner {
@@ -396,17 +465,17 @@
             align-items: flex-start;
         }
         @media (min-width: 760px) {
-            #hud-top { --hud-h: 84px; --pause-s: 56px; --radar-s: 112px; }
-            .hud-strip { gap: 7px; }
-            .hud-stack { max-width: 110px; }
-            .res-lab { font-size: 10px; }
-            .res-val { font-size: 16px; }
-            .res-card .meter-track { height: 20px; }
+            #hud-top { --hud-h: 62px; --pause-s: 56px; --radar-s: 112px; }
+            .hud-strip { gap: 6px; }
+            .hud-stack { max-width: 96px; }
+            .res-lab { font-size: 13px; }
+            .res-val { font-size: 18px; }
+            .res-card .meter-track { height: 24px; }
         }
         @media (max-width: 400px) {
-            .meter-label { font-size: 7px; letter-spacing: 0; padding: 0 3px; }
-            .res-lab { font-size: 7px; letter-spacing: 0.3px; }
-            .res-val { font-size: 11px; }
+            .meter-label { font-size: 11px; letter-spacing: 0.2px; padding: 0 5px; }
+            .res-lab { font-size: 11px; letter-spacing: 0.4px; }
+            .res-val { font-size: 14px; }
         }
         @media (max-width: 359px) {
             #hud-top { --hud-h: 54px; --pause-s: 48px; --radar-s: 88px; }
@@ -1255,17 +1324,21 @@
                     <div class="res-val" id="level">1</div>
                 </div>
                 <div class="res-card res-xp">
-                    <div class="res-lab">XP</div>
+                    <div class="res-row">
+                        <div class="res-lab">XP</div>
+                        <div class="res-val" id="xp-pct">0%</div>
+                    </div>
                     <div class="meter-track">
                         <div class="xp-bar-fill" id="xp-bar"></div>
-                        <span class="meter-label" id="xp-pct">0%</span>
                     </div>
                 </div>
                 <div class="res-card res-hp level-chip">
-                    <div class="res-lab">HP</div>
+                    <div class="res-row">
+                        <div class="res-lab">HP</div>
+                        <div class="res-val" id="hp-pct">100%</div>
+                    </div>
                     <div class="meter-track">
                         <div class="health-bar-fill hp-bar-under" id="hp-bar"></div>
-                        <span class="meter-label" id="hp-pct">100%</span>
                     </div>
                 </div>
             </div>
@@ -1311,66 +1384,7 @@
     </div>
 
     <div id="start-screen" class="screen">
-        <div class="menu-tank-bg"><svg class="tank-svg" viewBox="0 0 240 130" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-  <defs>
-    <linearGradient id="tkHullA" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#8a939c"/>
-      <stop offset="42%" stop-color="#4a5560"/>
-      <stop offset="100%" stop-color="#1c2126"/>
-    </linearGradient>
-    <linearGradient id="tkGoldA" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#f3e2a8"/>
-      <stop offset="55%" stop-color="#D1B87D"/>
-      <stop offset="100%" stop-color="#8a6a2a"/>
-    </linearGradient>
-    <linearGradient id="tkTrackA" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#3a4046"/>
-      <stop offset="100%" stop-color="#111418"/>
-    </linearGradient>
-  </defs>
-  <ellipse cx="118" cy="118" rx="86" ry="8" fill="rgba(0,0,0,0.35)"/>
-  <rect x="28" y="86" width="168" height="22" rx="8" fill="url(#tkTrackA)" stroke="#d1b87d" stroke-width="1.4"/>
-  <circle cx="48" cy="97" r="9" fill="#2a3036" stroke="#c0c6d2" stroke-width="1.2"/>
-  <circle cx="78" cy="97" r="9" fill="#2a3036" stroke="#c0c6d2" stroke-width="1.2"/>
-  <circle cx="110" cy="97" r="9" fill="#2a3036" stroke="#c0c6d2" stroke-width="1.2"/>
-  <circle cx="142" cy="97" r="9" fill="#2a3036" stroke="#c0c6d2" stroke-width="1.2"/>
-  <circle cx="174" cy="97" r="9" fill="#2a3036" stroke="#c0c6d2" stroke-width="1.2"/>
-  <path d="M40 84 L54 58 H162 L186 84 Z" fill="url(#tkHullA)" stroke="#d1b87d" stroke-width="1.6"/>
-  <rect x="78" y="36" width="62" height="28" rx="6" fill="url(#tkHullA)" stroke="#d1b87d" stroke-width="1.5"/>
-  <rect x="136" y="44" width="78" height="8" rx="3" fill="url(#tkGoldA)"/>
-  <circle cx="98" cy="49" r="6" fill="#1a1e24" stroke="#e5e7eb" stroke-width="1.2"/>
-  <rect x="58" y="66" width="18" height="10" rx="2" fill="#2a3036" stroke="#c0c6d2" stroke-width="0.8"/>
-</svg></div>
-        <div class="home-logo tank-mark"><svg class="tank-svg" viewBox="0 0 240 130" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-  <defs>
-    <linearGradient id="tkHullB" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#8a939c"/>
-      <stop offset="42%" stop-color="#4a5560"/>
-      <stop offset="100%" stop-color="#1c2126"/>
-    </linearGradient>
-    <linearGradient id="tkGoldB" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#f3e2a8"/>
-      <stop offset="55%" stop-color="#D1B87D"/>
-      <stop offset="100%" stop-color="#8a6a2a"/>
-    </linearGradient>
-    <linearGradient id="tkTrackB" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#3a4046"/>
-      <stop offset="100%" stop-color="#111418"/>
-    </linearGradient>
-  </defs>
-  <ellipse cx="118" cy="118" rx="86" ry="8" fill="rgba(0,0,0,0.35)"/>
-  <rect x="28" y="86" width="168" height="22" rx="8" fill="url(#tkTrackB)" stroke="#d1b87d" stroke-width="1.4"/>
-  <circle cx="48" cy="97" r="9" fill="#2a3036" stroke="#c0c6d2" stroke-width="1.2"/>
-  <circle cx="78" cy="97" r="9" fill="#2a3036" stroke="#c0c6d2" stroke-width="1.2"/>
-  <circle cx="110" cy="97" r="9" fill="#2a3036" stroke="#c0c6d2" stroke-width="1.2"/>
-  <circle cx="142" cy="97" r="9" fill="#2a3036" stroke="#c0c6d2" stroke-width="1.2"/>
-  <circle cx="174" cy="97" r="9" fill="#2a3036" stroke="#c0c6d2" stroke-width="1.2"/>
-  <path d="M40 84 L54 58 H162 L186 84 Z" fill="url(#tkHullB)" stroke="#d1b87d" stroke-width="1.6"/>
-  <rect x="78" y="36" width="62" height="28" rx="6" fill="url(#tkHullB)" stroke="#d1b87d" stroke-width="1.5"/>
-  <rect x="136" y="44" width="78" height="8" rx="3" fill="url(#tkGoldB)"/>
-  <circle cx="98" cy="49" r="6" fill="#1a1e24" stroke="#e5e7eb" stroke-width="1.2"/>
-  <rect x="58" y="66" width="18" height="10" rx="2" fill="#2a3036" stroke="#c0c6d2" stroke-width="0.8"/>
-</svg></div>
+        <div class="home-logo tank-mark"><div class="gtank" aria-hidden="true"><div class="gt-ring"></div><div class="gt-stage"><div class="gt-track gt-tl"></div><div class="gt-track gt-tr"></div><div class="gt-hull"></div><div class="gt-plate"></div><div class="gt-turret"></div><div class="gt-hatch"></div><div class="gt-barrel"></div><div class="gt-muzzle"></div></div></div></div>
         <h1>TANK REALMS</h1>
         <h2>Conquer Every Biome</h2>
         <div class="home-stats">
@@ -1386,7 +1400,7 @@
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">HUD 7</div>
+        <div class="version-tag" id="version-tag">HUD 8</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -1500,66 +1514,7 @@
     </div>
 
     <div id="pause-screen" class="screen hidden">
-        <div class="menu-tank-bg"><svg class="tank-svg" viewBox="0 0 240 130" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-  <defs>
-    <linearGradient id="tkHullC" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#8a939c"/>
-      <stop offset="42%" stop-color="#4a5560"/>
-      <stop offset="100%" stop-color="#1c2126"/>
-    </linearGradient>
-    <linearGradient id="tkGoldC" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#f3e2a8"/>
-      <stop offset="55%" stop-color="#D1B87D"/>
-      <stop offset="100%" stop-color="#8a6a2a"/>
-    </linearGradient>
-    <linearGradient id="tkTrackC" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#3a4046"/>
-      <stop offset="100%" stop-color="#111418"/>
-    </linearGradient>
-  </defs>
-  <ellipse cx="118" cy="118" rx="86" ry="8" fill="rgba(0,0,0,0.35)"/>
-  <rect x="28" y="86" width="168" height="22" rx="8" fill="url(#tkTrackC)" stroke="#d1b87d" stroke-width="1.4"/>
-  <circle cx="48" cy="97" r="9" fill="#2a3036" stroke="#c0c6d2" stroke-width="1.2"/>
-  <circle cx="78" cy="97" r="9" fill="#2a3036" stroke="#c0c6d2" stroke-width="1.2"/>
-  <circle cx="110" cy="97" r="9" fill="#2a3036" stroke="#c0c6d2" stroke-width="1.2"/>
-  <circle cx="142" cy="97" r="9" fill="#2a3036" stroke="#c0c6d2" stroke-width="1.2"/>
-  <circle cx="174" cy="97" r="9" fill="#2a3036" stroke="#c0c6d2" stroke-width="1.2"/>
-  <path d="M40 84 L54 58 H162 L186 84 Z" fill="url(#tkHullC)" stroke="#d1b87d" stroke-width="1.6"/>
-  <rect x="78" y="36" width="62" height="28" rx="6" fill="url(#tkHullC)" stroke="#d1b87d" stroke-width="1.5"/>
-  <rect x="136" y="44" width="78" height="8" rx="3" fill="url(#tkGoldC)"/>
-  <circle cx="98" cy="49" r="6" fill="#1a1e24" stroke="#e5e7eb" stroke-width="1.2"/>
-  <rect x="58" y="66" width="18" height="10" rx="2" fill="#2a3036" stroke="#c0c6d2" stroke-width="0.8"/>
-</svg></div>
-        <div class="pause-tank-mark"><svg class="tank-svg" viewBox="0 0 240 130" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-  <defs>
-    <linearGradient id="tkHullD" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#8a939c"/>
-      <stop offset="42%" stop-color="#4a5560"/>
-      <stop offset="100%" stop-color="#1c2126"/>
-    </linearGradient>
-    <linearGradient id="tkGoldD" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#f3e2a8"/>
-      <stop offset="55%" stop-color="#D1B87D"/>
-      <stop offset="100%" stop-color="#8a6a2a"/>
-    </linearGradient>
-    <linearGradient id="tkTrackD" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#3a4046"/>
-      <stop offset="100%" stop-color="#111418"/>
-    </linearGradient>
-  </defs>
-  <ellipse cx="118" cy="118" rx="86" ry="8" fill="rgba(0,0,0,0.35)"/>
-  <rect x="28" y="86" width="168" height="22" rx="8" fill="url(#tkTrackD)" stroke="#d1b87d" stroke-width="1.4"/>
-  <circle cx="48" cy="97" r="9" fill="#2a3036" stroke="#c0c6d2" stroke-width="1.2"/>
-  <circle cx="78" cy="97" r="9" fill="#2a3036" stroke="#c0c6d2" stroke-width="1.2"/>
-  <circle cx="110" cy="97" r="9" fill="#2a3036" stroke="#c0c6d2" stroke-width="1.2"/>
-  <circle cx="142" cy="97" r="9" fill="#2a3036" stroke="#c0c6d2" stroke-width="1.2"/>
-  <circle cx="174" cy="97" r="9" fill="#2a3036" stroke="#c0c6d2" stroke-width="1.2"/>
-  <path d="M40 84 L54 58 H162 L186 84 Z" fill="url(#tkHullD)" stroke="#d1b87d" stroke-width="1.6"/>
-  <rect x="78" y="36" width="62" height="28" rx="6" fill="url(#tkHullD)" stroke="#d1b87d" stroke-width="1.5"/>
-  <rect x="136" y="44" width="78" height="8" rx="3" fill="url(#tkGoldD)"/>
-  <circle cx="98" cy="49" r="6" fill="#1a1e24" stroke="#e5e7eb" stroke-width="1.2"/>
-  <rect x="58" y="66" width="18" height="10" rx="2" fill="#2a3036" stroke="#c0c6d2" stroke-width="0.8"/>
-</svg></div>
+        <div class="pause-tank-mark"><div class="gtank" aria-hidden="true"><div class="gt-ring"></div><div class="gt-stage"><div class="gt-track gt-tl"></div><div class="gt-track gt-tr"></div><div class="gt-hull"></div><div class="gt-plate"></div><div class="gt-turret"></div><div class="gt-hatch"></div><div class="gt-barrel"></div><div class="gt-muzzle"></div></div></div></div>
         <h1>⏸ Paused</h1>
         <div class="pause-build">
             <div class="pb-title">YOUR BUILD</div>
