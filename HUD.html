@@ -4625,62 +4625,52 @@
         let _menuTank = null;
         function buildShowcaseTank(color) {
             const group = new THREE.Group();
-            const bodyMat = new THREE.MeshStandardMaterial({
-                color: color, roughness: 0.22, metalness: 0.84, envMapIntensity: 1.25
-            });
+            const bodyMat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.34, metalness: 0.62 });
             bodyMat.userData.skin = true;
             const dark = new THREE.Color(color).multiplyScalar(0.55);
-            const darkMat = new THREE.MeshStandardMaterial({
-                color: dark, roughness: 0.32, metalness: 0.72, envMapIntensity: 1.05
-            });
+            const darkMat = new THREE.MeshStandardMaterial({ color: dark, roughness: 0.42, metalness: 0.5 });
             darkMat.userData.skinDark = true;
-            const steel = new THREE.MeshStandardMaterial({ color: 0x3e4248, roughness: 0.22, metalness: 0.9 });
-            const trackMat = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.48, metalness: 0.42 });
-            const wheelMat = new THREE.MeshStandardMaterial({ color: 0x242424, roughness: 0.35, metalness: 0.55 });
-            const add = (mesh, parent, x, y, z, sx, sy, sz) => {
-                mesh.castShadow = true;
-                mesh.receiveShadow = true;
-                if (sx) mesh.scale.set(sx, sy, sz);
-                mesh.position.set(x, y, z);
-                (parent || group).add(mesh);
-                return mesh;
+            const steel = new THREE.MeshStandardMaterial({ color: 0x3a3d42, roughness: 0.28, metalness: 0.82 });
+            const trackMat = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.7, metalness: 0.28 });
+            const wheelMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.45, metalness: 0.4 });
+            const put = (geo, mat, parent, x, y, z, rx, ry, rz) => {
+                const m = new THREE.Mesh(geo, mat);
+                m.castShadow = true;
+                m.receiveShadow = true;
+                m.position.set(x, y, z);
+                if (rx) m.rotation.x = rx;
+                if (ry) m.rotation.y = ry;
+                if (rz) m.rotation.z = rz;
+                (parent || group).add(m);
+                return m;
             };
-            add(new THREE.Mesh(new THREE.SphereGeometry(1.28, 32, 22), bodyMat), group, 0, 0.78, 0, 1.22, 0.46, 1.58);
-            const belly = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.76, 3.05, 24), bodyMat);
-            belly.rotation.x = Math.PI / 2;
-            add(belly, group, 0, 0.7, 0, 1.38, 1, 0.52);
-            add(new THREE.Mesh(new THREE.SphereGeometry(0.82, 24, 18), bodyMat), group, 0, 0.7, 1.48, 1.22, 0.42, 0.72);
-            add(new THREE.Mesh(new THREE.SphereGeometry(0.7, 20, 16), bodyMat), group, 0, 0.68, -1.42, 1.18, 0.4, 0.62);
+            put(new THREE.BoxGeometry(2.35, 0.72, 3.9), bodyMat, group, 0, 0.78, 0);
+            put(new THREE.BoxGeometry(2.05, 0.28, 3.15), bodyMat, group, 0, 1.22, -0.08);
+            const glacis = put(new THREE.BoxGeometry(2.2, 0.5, 1.05), bodyMat, group, 0, 0.92, 1.72);
+            glacis.rotation.x = -0.42;
+            put(new THREE.BoxGeometry(1.7, 0.22, 0.7), darkMat, group, 0, 0.58, 2.05);
+            put(new THREE.BoxGeometry(0.55, 0.22, 0.7), bodyMat, group, -0.85, 1.28, 0.55);
+            put(new THREE.BoxGeometry(0.55, 0.22, 0.7), bodyMat, group, 0.85, 1.28, 0.55);
+            put(new THREE.BoxGeometry(0.18, 0.16, 1.1), steel, group, 0.95, 1.34, -1.15);
             const turretPivot = new THREE.Group();
             turretPivot.name = 'turretPivot';
-            turretPivot.position.y = 1.12;
+            turretPivot.position.set(0, 1.36, -0.12);
             group.add(turretPivot);
-            add(new THREE.Mesh(new THREE.SphereGeometry(0.95, 32, 20, 0, Math.PI * 2, 0, Math.PI * 0.56), bodyMat), turretPivot, 0, 0.08, 0.08, 1.02, 0.92, 1.08);
-            add(new THREE.Mesh(new THREE.CylinderGeometry(0.86, 0.98, 0.2, 28), bodyMat), turretPivot, 0, 0.02, 0.06);
-            add(new THREE.Mesh(new THREE.SphereGeometry(0.3, 18, 14), steel), turretPivot, 0, 0.3, 0.86, 1, 0.82, 1.15);
-            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.115, 3.15, 18), steel);
-            barrel.rotation.x = Math.PI / 2;
-            add(barrel, turretPivot, 0, 0.3, 2.38);
-            const brake = new THREE.Mesh(new THREE.CylinderGeometry(0.155, 0.12, 0.36, 14), steel);
-            brake.rotation.x = Math.PI / 2;
-            add(brake, turretPivot, 0, 0.3, 3.96);
-            add(new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2), darkMat), turretPivot, -0.18, 0.7, -0.12);
-            const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.01, 1.28, 8), steel);
-            antenna.rotation.z = 0.14;
-            add(antenna, turretPivot, -0.48, 1.02, -0.32);
+            put(new THREE.CylinderGeometry(0.92, 1.08, 0.38, 12), bodyMat, turretPivot, 0, 0.2, 0);
+            put(new THREE.BoxGeometry(1.55, 0.58, 1.85), bodyMat, turretPivot, 0, 0.52, 0.12);
+            put(new THREE.BoxGeometry(1.25, 0.36, 0.7), bodyMat, turretPivot, 0, 0.48, 1.05);
+            put(new THREE.CylinderGeometry(0.28, 0.34, 0.42, 12), steel, turretPivot, 0, 0.46, 1.38, Math.PI / 2);
+            put(new THREE.CylinderGeometry(0.1, 0.13, 3.05, 12), steel, turretPivot, 0, 0.46, 2.92, Math.PI / 2);
+            put(new THREE.CylinderGeometry(0.16, 0.12, 0.32, 10), steel, turretPivot, 0, 0.46, 4.48, Math.PI / 2);
+            put(new THREE.CylinderGeometry(0.26, 0.26, 0.14, 12), darkMat, turretPivot, -0.22, 0.86, -0.18);
+            put(new THREE.CylinderGeometry(0.015, 0.01, 1.15, 6), steel, turretPivot, -0.52, 1.18, -0.45, 0, 0, 0.12);
             [-1, 1].forEach(function (side) {
-                const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 3.35, 18), trackMat);
-                rail.rotation.x = Math.PI / 2;
-                add(rail, group, side * 1.36, 0.4, 0);
-                add(new THREE.Mesh(new THREE.SphereGeometry(0.4, 16, 14), trackMat), group, side * 1.36, 0.4, -1.68);
-                add(new THREE.Mesh(new THREE.SphereGeometry(0.4, 16, 14), trackMat), group, side * 1.36, 0.4, 1.68);
-                const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 3.2, 10), darkMat);
-                skirt.rotation.x = Math.PI / 2;
-                add(skirt, group, side * 1.5, 0.78, 0, 1, 1, 1);
-                for (let i = -1.45; i <= 1.45; i += 0.58) {
-                    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.2, 18), wheelMat);
-                    wheel.rotation.z = Math.PI / 2;
-                    add(wheel, group, side * 1.36, 0.34, i);
+                put(new THREE.BoxGeometry(0.58, 0.78, 4.15), trackMat, group, side * 1.42, 0.46, 0);
+                put(new THREE.BoxGeometry(0.7, 0.12, 4.25), darkMat, group, side * 1.42, 0.9, 0);
+                put(new THREE.CylinderGeometry(0.34, 0.34, 0.22, 14), wheelMat, group, side * 1.42, 0.4, -1.85, 0, 0, Math.PI / 2);
+                put(new THREE.CylinderGeometry(0.34, 0.34, 0.22, 14), wheelMat, group, side * 1.42, 0.4, 1.85, 0, 0, Math.PI / 2);
+                for (let i = -1.2; i <= 1.2; i += 0.6) {
+                    put(new THREE.CylinderGeometry(0.3, 0.3, 0.2, 14), wheelMat, group, side * 1.42, 0.32, i, 0, 0, Math.PI / 2);
                 }
             });
             return group;
