@@ -77,7 +77,7 @@
             background: rgba(0,0,0,0.5);
             border: 1px solid rgba(255,255,255,0.08);
             border-radius: 10px;
-            padding: 3px 10px;
+            padding: 4px 10px;
             color: #fff;
             font-size: 13px;
             font-weight: 700;
@@ -86,27 +86,50 @@
             white-space: nowrap;
         }
         .level-chip {
-            display: inline-flex;
+            display: flex;
             flex-direction: column;
             align-items: stretch;
             gap: 5px;
             letter-spacing: 0.5px;
-            padding: 6px 12px 8px !important;
-            min-width: 118px;
+            padding: 6px 10px 8px !important;
+            width: min(196px, 42vw);
+            min-width: 0;
         }
-        .level-chip .lv-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
-        .level-chip .xp-bar-container { width: 100%; height: 4px; margin-top: 0; }
+        .level-chip .lv-row { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; }
+        .level-chip .xp-bar-container { width: auto; min-width: 0; height: 7px; margin-top: 0; flex: 1; }
         .level-chip .hp-bar-under {
-            width: 100%;
+            width: auto;
+            min-width: 0;
+            flex: 1;
             height: 8px;
             margin-top: 0;
             border-radius: 5px;
+        }
+        .bar-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .bar-lab {
+            font-size: 9px;
+            letter-spacing: 0.6px;
+            opacity: 0.7;
+            width: 16px;
+            flex: 0 0 16px;
+        }
+        .bar-pct {
+            font-size: 10px;
+            font-weight: 800;
+            min-width: 30px;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            opacity: 0.95;
         }
         #hud-bottom { display: none; }
         #hp-panel { display: none; }
         #hp-panel .health-bar-container { width: 110px; height: 9px; margin-top: 0; }
         .hp-text { font-size: 13px; font-weight: 700; min-width: 48px; text-shadow: 0 1px 3px rgba(0,0,0,0.95); }
-        #minimap { margin-top: 54px; }
+        #minimap { margin-top: 0; }
         .pause-build { margin: 2px 0 6px; text-align: center; }
         .pb-title { color: rgba(255,255,255,0.5); font-size: 11px; letter-spacing: 3px; margin-bottom: 8px; }
         .pb-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 340px; }
@@ -219,27 +242,38 @@
             top: 0;
             left: 0;
             right: 0;
-            height: 0;
-            padding: 0 16px;
+            display: grid;
+            grid-template-columns: minmax(72px, 1fr) auto minmax(72px, 1fr);
+            align-items: start;
+            column-gap: 8px;
+            padding: max(10px, env(safe-area-inset-top)) max(64px, env(safe-area-inset-right)) 0 max(10px, env(safe-area-inset-left));
             pointer-events: none;
+            box-sizing: border-box;
         }
         .hud-left {
-            position: absolute;
-            left: max(16px, env(safe-area-inset-left));
-            top: max(15px, env(safe-area-inset-top));
-            max-width: 40vw;
+            position: static;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 4px;
+            min-width: 0;
+            max-width: 100%;
+        }
+        .hud-left .hud-chip {
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-variant-numeric: tabular-nums;
         }
         .hud-center {
-            position: absolute;
-            left: 50%;
-            top: max(15px, env(safe-area-inset-top));
-            transform: translateX(-50%);
-            max-width: 32vw;
+            position: static;
+            transform: none;
+            max-width: none;
+            justify-self: center;
         }
         .hud-top-right {
-            position: absolute;
-            right: max(16px, env(safe-area-inset-right));
-            top: max(15px, env(safe-area-inset-top));
+            position: static;
+            justify-self: end;
         }
 
         .hud-panel {
@@ -320,7 +354,7 @@
             align-items: flex-end;
         }
         #minimap {
-            margin-top: 58px;
+            margin-top: 4px;
             border-radius: 50%;
             border: 2px solid rgba(255,255,255,0.18);
             background: rgba(5,10,18,0.55);
@@ -837,16 +871,24 @@
     
     <div id="hud-layer">
         <div id="hud-top">
-            <!-- v7: slim HUD — compact chips, stat numbers moved to the pause screen -->
             <div class="hud-left">
-                <div class="hud-chip">🏆 <span id="score">0</span> &nbsp;·&nbsp; 💰 <span id="coins">0</span></div>
+                <div class="hud-chip hud-score">🏆 <span id="score">0</span></div>
+                <div class="hud-chip hud-coins">💰 <span id="coins">0</span></div>
                 <div id="kill-feed"></div>
             </div>
             <div class="hud-center">
                 <div class="hud-chip level-chip">
                     <div class="lv-row">LV <span id="level">1</span></div>
-                    <div class="xp-bar-container"><div class="xp-bar-fill" id="xp-bar"></div></div>
-                    <div class="health-bar-container hp-bar-under"><div class="health-bar-fill" id="hp-bar"></div></div>
+                    <div class="bar-row">
+                        <span class="bar-lab">XP</span>
+                        <div class="xp-bar-container"><div class="xp-bar-fill" id="xp-bar"></div></div>
+                        <span class="bar-pct" id="xp-pct">0%</span>
+                    </div>
+                    <div class="bar-row">
+                        <span class="bar-lab">HP</span>
+                        <div class="health-bar-container hp-bar-under"><div class="health-bar-fill" id="hp-bar"></div></div>
+                        <span class="bar-pct" id="hp-pct">100%</span>
+                    </div>
                 </div>
             </div>
             <div class="hud-top-right">
@@ -905,7 +947,7 @@
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">v27.6</div>
+        <div class="version-tag" id="version-tag">v27.7</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -5444,13 +5486,18 @@
         }
 
         function updateHUD() {
-            dom('score').textContent = state.score; // FIX (Tier 4): cached lookups
+            const scoreEl = dom('score');
+            if (scoreEl) scoreEl.textContent = (state.score || 0).toLocaleString();
             const coinsEl = dom('coins');
-            if (coinsEl) coinsEl.textContent = (state.coins || 0); // v26.3: coins via HUD, no 500ms poll
-            dom('level').textContent = state.level;
+            if (coinsEl) coinsEl.textContent = (state.coins || 0).toLocaleString();
+            const lvlEl = dom('level');
+            if (lvlEl) lvlEl.textContent = state.level;
             
-            const xpPct = (state.xp / state.xpToNext) * 100;
-            dom('xp-bar').style.width = xpPct + '%';
+            const xpPct = Math.max(0, Math.min(100, Math.round(((state.xp || 0) / Math.max(1, state.xpToNext || 1)) * 100)));
+            const xpBar = dom('xp-bar');
+            if (xpBar) xpBar.style.width = xpPct + '%';
+            const xpPctEl = document.getElementById('xp-pct');
+            if (xpPctEl) xpPctEl.textContent = xpPct + '%';
             
             dom('stat-speed').textContent = state.playerStats.speed;
             dom('stat-damage').textContent = state.playerStats.damage;
@@ -5460,7 +5507,9 @@
             if (dom('stat-multishot')) dom('stat-multishot').textContent = state.playerStats.multishot || 0;
             
             if (player) {
-                const hpPct = Math.max(0, (player.hp / player.maxHp) * 100);
+                const hpPct = Math.max(0, Math.min(100, Math.round((player.hp / (player.maxHp || 1)) * 100)));
+                const hpPctEl = document.getElementById('hp-pct');
+                if (hpPctEl) hpPctEl.textContent = hpPct + '%';
                 const bar = dom('hp-bar');
                 if (bar) {
                     bar.style.width = hpPct + '%';
