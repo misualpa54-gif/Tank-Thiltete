@@ -193,15 +193,72 @@
 
         /* v7: home screen */
         .home-logo { font-size: 64px; animation: homeFloat 3s ease-in-out infinite; text-shadow: 0 0 40px rgba(102,126,234,0.7); }
-                #start-screen {
+                #start-screen.hangar-screen {
             justify-content: center;
             overflow-x: hidden;
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
             padding: max(8px, env(safe-area-inset-top)) 16px max(12px, env(safe-area-inset-bottom));
+            background:
+                radial-gradient(ellipse at 50% 18%, rgba(70,90,110,0.28), transparent 42%),
+                linear-gradient(180deg, #12161c 0%, #0a0c10 55%, #07080a 100%) !important;
+        }
+        .hangar-bg {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+        .hangar-wall {
+            position: absolute;
+            inset: 0 0 38%;
+            background:
+                repeating-linear-gradient(90deg, rgba(255,255,255,0.015) 0 2px, transparent 2px 42px),
+                linear-gradient(180deg, #1c242e 0%, #10151b 100%);
+            filter: blur(1.2px);
+        }
+        .hangar-consoles {
+            position: absolute;
+            left: 0; right: 0; top: 8%;
+            height: 28%;
+            display: flex;
+            justify-content: space-around;
+            align-items: flex-end;
+            padding: 0 6%;
+            filter: blur(1.5px);
+            opacity: 0.55;
+        }
+        .hangar-consoles i {
+            display: block;
+            width: 11%;
+            height: 42%;
+            border-radius: 3px;
+            background: linear-gradient(180deg, rgba(80,180,220,0.35), rgba(20,40,60,0.15));
+            box-shadow: 0 0 18px rgba(70,170,210,0.25), inset 0 0 10px rgba(120,220,255,0.2);
+        }
+        .hangar-consoles i:nth-child(2),
+        .hangar-consoles i:nth-child(5) { height: 58%; background: linear-gradient(180deg, rgba(90,210,160,0.28), rgba(20,40,30,0.12)); }
+        .hangar-consoles i:nth-child(3) { height: 70%; }
+        .hangar-floor {
+            position: absolute;
+            left: -10%; right: -10%;
+            top: 48%;
+            height: 70%;
+            background:
+                repeating-linear-gradient(90deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 36px),
+                linear-gradient(180deg, #2a3138 0%, #0c0e12 70%);
+            transform: perspective(420px) rotateX(58deg);
+            transform-origin: top center;
+            filter: blur(0.8px);
+        }
+        .hangar-fog {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse at 50% 40%, transparent 20%, rgba(0,0,0,0.55) 78%);
         }
         .home-wrap {
-            width: min(100%, 340px);
+            width: min(100%, 360px);
             margin: 0 auto;
             display: flex;
             flex-direction: column;
@@ -219,40 +276,112 @@
         }
         .home-titles { text-align: center; width: 100%; }
         #start-screen h1 {
-            font-size: clamp(1.55rem, 6.6vw, 2.1rem);
-            letter-spacing: 0.18em;
+            font-size: clamp(1.7rem, 7vw, 2.25rem);
+            letter-spacing: 4px;
             margin: 0;
             line-height: 1.1;
+            font-weight: 800;
+            background: linear-gradient(180deg, #ffffff 0%, #d5d8de 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            filter: drop-shadow(0 2px 8px rgba(0,0,0,0.8));
         }
         #start-screen h2 {
-            margin: 2px 0 0;
-            font-size: 0.68rem;
-            letter-spacing: 0.22em;
+            margin: 4px 0 0;
+            font-size: 11px;
+            letter-spacing: 3px;
+            color: #C8A86B;
+            text-transform: uppercase;
         }
         .home-actions {
             width: 100%;
             display: flex;
             flex-direction: column;
-            gap: 7px;
+            gap: 8px;
             position: relative;
             z-index: 5;
         }
-        .home-actions .btn,
-        #start-screen #btn-shop-home {
+        #start-screen .home-btn {
             margin-top: 0 !important;
             width: 100%;
             min-width: 0 !important;
-            height: 46px;
-            padding: 0 14px;
-            font-size: 14px;
-            letter-spacing: 1.6px;
-            display: flex;
+            min-height: 58px;
+            height: auto;
+            padding: 8px 14px 8px 12px !important;
+            display: flex !important;
+            flex-direction: row;
             align-items: center;
-            justify-content: center;
+            justify-content: flex-start;
+            gap: 10px;
+            text-transform: none;
+            letter-spacing: 0;
+            position: relative;
+            overflow: hidden;
         }
+        #start-screen .hb-ico { font-size: 16px; width: 22px; text-align: center; flex: 0 0 22px; }
+        #start-screen .hb-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; text-align: left; }
+        #start-screen .hb-title { font-size: 16px; font-weight: 800; color: #fff; letter-spacing: 1.2px; line-height: 1.15; text-shadow: 0 2px 4px rgba(0,0,0,0.75); }
+        #start-screen .hb-sub { font-size: 12px; font-weight: 600; letter-spacing: 0.3px; line-height: 1.2; text-transform: none; }
+        #start-screen .home-btn-casual {
+            border-radius: 14px !important;
+            border: 1.5px solid #1f4a3c !important;
+            background: linear-gradient(180deg, #1B2E28 0%, #121E1A 100%) !important;
+            box-shadow: 0 0 14px rgba(46, 140, 110, 0.35), 0 4px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(160,220,190,0.18), inset 0 -2px 4px rgba(0,0,0,0.45) !important;
+        }
+        #start-screen .home-btn-casual .hb-sub { color: #7DA899; }
+        #start-screen .home-btn-levels {
+            border-radius: 6px !important;
+            border: 1.5px solid #6a3030 !important;
+            background:
+                linear-gradient(180deg, rgba(255,255,255,0.04), transparent 30%),
+                linear-gradient(180deg, #3a4048 0%, #23282e 100%) !important;
+            box-shadow: 0 0 0 1px rgba(160,40,40,0.35), 0 4px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.12) !important;
+        }
+        #start-screen .home-btn-levels .hb-sub { color: #A0A5AC; }
+        #start-screen .rivet {
+            position: absolute;
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 30%, #d0d4da, #6b7280 55%, #2a2e33);
+            box-shadow: inset 0 1px 1px rgba(255,255,255,0.5), 0 1px 1px #000;
+        }
+        #start-screen .rivet.r1 { top: 6px; left: 6px; }
+        #start-screen .rivet.r2 { top: 6px; right: 6px; }
+        #start-screen .rivet.r3 { bottom: 6px; left: 6px; }
+        #start-screen .rivet.r4 { bottom: 6px; right: 6px; }
+        #start-screen .home-btn-armory {
+            border-radius: 4px !important;
+            border: 1.5px solid #8a6a32 !important;
+            background-color: #161616 !important;
+            background-image:
+                repeating-linear-gradient(45deg, rgba(255,255,255,0.045) 0 1px, transparent 1px 4px),
+                repeating-linear-gradient(-45deg, rgba(0,0,0,0.25) 0 1px, transparent 1px 4px),
+                linear-gradient(180deg, #222 0%, #111 100%) !important;
+            background-size: 4px 4px, 4px 4px, 100% 100% !important;
+            clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(200,168,107,0.25) !important;
+        }
+        #start-screen .home-btn-armory .hb-sub { color: #C8A86B; }
+        #start-screen .arm-grip {
+            position: absolute;
+            top: 10px; bottom: 10px;
+            width: 7px;
+            background: repeating-linear-gradient(#3a3a3a 0 2px, #111 2px 4px);
+            border: 1px solid #8a6a32;
+        }
+        #start-screen .arm-grip.gL { left: 4px; }
+        #start-screen .arm-grip.gR { right: 4px; }
+        #start-screen .home-btn-awards {
+            border-radius: 8px !important;
+            border: 1.5px solid #c4a06a !important;
+            background: linear-gradient(90deg, #4A3728 0%, #6D523C 48%, #4A3728 100%) !important;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5), inset 0 2px 0 rgba(255,220,160,0.28), inset 0 -2px 3px rgba(0,0,0,0.4) !important;
+        }
+        #start-screen .home-btn-awards .hb-sub { color: #D8BA8E; }
         .home-logo.tank-mark, .pause-tank-mark {
-            width: min(58vw, 196px);
-            height: min(18vh, 120px);
+            width: min(78vw, 280px);
+            height: min(22vh, 148px);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1069,17 +1198,29 @@
         h2 { color: #D1B87D; letter-spacing: 3px; }
         .home-logo { filter: drop-shadow(0 4px 8px rgba(0,0,0,0.55)); }
         .home-num { text-shadow: 0 2px 4px rgba(0,0,0,0.75); }
-        .home-label { color: #D1B87D; }
+        .home-label { color: #C8A86B; font-size: 10px; letter-spacing: 0.8px; }
+        .coin-glyph {
+            display: inline-block;
+            width: 11px; height: 11px; line-height: 11px;
+            margin-right: 3px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 30%, #ffe9a0, #C8A86B 55%, #8a6a2a);
+            color: #5a4010;
+            font-size: 8px;
+            font-weight: 800;
+            text-align: center;
+            vertical-align: middle;
+        }
         .home-stat {
             min-width: 0;
             width: 100%;
             min-height: 48px;
             padding: 6px 4px;
-            border-radius: 12px;
+            border-radius: 10px;
             justify-content: center;
-            background: linear-gradient(180deg, #4a5560 0%, #3A444C 40%, #1c2126 100%);
-            border: 1.5px solid rgba(192,198,210,0.35);
-            box-shadow: 0 4px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.18);
+            background: linear-gradient(180deg, #2c3238 0%, #1a1e22 100%);
+            border: 1.5px solid #4A525D;
+            box-shadow: inset 0 1px 2px rgba(255,255,255,0.1), inset 0 -2px 4px rgba(0,0,0,0.5);
         }
         .settings-panel {
             background: linear-gradient(180deg, #3A444C 0%, #242A30 55%, #161a1e 100%);
@@ -1369,7 +1510,15 @@
         <p id="enemy-desc" style="margin:5px 0 0 0;opacity:0.7;font-size:12px;">Fast but fragile</p>
     </div>
 
-    <div id="start-screen" class="screen">
+    <div id="start-screen" class="screen hangar-screen">
+        <div class="hangar-bg" aria-hidden="true">
+            <div class="hangar-wall"></div>
+            <div class="hangar-consoles">
+                <i></i><i></i><i></i><i></i><i></i><i></i>
+            </div>
+            <div class="hangar-floor"></div>
+            <div class="hangar-fog"></div>
+        </div>
         <div class="home-wrap">
             <header class="home-hero">
                 <div class="home-logo tank-mark"><canvas id="menu-tank-view" width="420" height="300"></canvas></div>
@@ -1379,15 +1528,29 @@
                 </div>
             </header>
             <div class="home-stats">
-                <div class="home-stat"><span class="home-num" id="home-best-casual">0</span><span class="home-label">Best · Casual</span></div>
-                <div class="home-stat"><span class="home-num" id="home-best-levels">0</span><span class="home-label">Best · Levels</span></div>
-                <div class="home-stat"><span class="home-num" id="home-coins">0</span><span class="home-label">Coins</span></div>
+                <div class="home-stat"><span class="home-num" id="home-best-casual">0</span><span class="home-label">BEST • CASUAL</span></div>
+                <div class="home-stat"><span class="home-num" id="home-best-levels">0</span><span class="home-label">BEST • LEVELS</span></div>
+                <div class="home-stat"><span class="home-num" id="home-coins">0</span><span class="home-label"><span class="coin-glyph">$</span> COINS</span></div>
             </div>
             <div class="home-actions">
-                <button class="btn" id="btn-casual">▶ &nbsp;Casual</button>
-                <button class="btn mode-btn" id="btn-levels">🎯 &nbsp;Level Mode</button>
-                <button class="btn" id="btn-shop-home">🛒 &nbsp;Armory</button>
-                <button class="btn" id="btn-awards">🏆 &nbsp;Awards</button>
+                <button class="btn home-btn home-btn-casual" id="btn-casual">
+                    <span class="hb-ico">▶</span>
+                    <span class="hb-copy"><span class="hb-title">CASUAL</span><span class="hb-sub">Quick Game</span></span>
+                </button>
+                <button class="btn home-btn home-btn-levels mode-btn" id="btn-levels">
+                    <span class="rivet r1"></span><span class="rivet r2"></span><span class="rivet r3"></span><span class="rivet r4"></span>
+                    <span class="hb-ico">🎯</span>
+                    <span class="hb-copy"><span class="hb-title">LEVEL MODE</span><span class="hb-sub">Progression Journey</span></span>
+                </button>
+                <button class="btn home-btn home-btn-armory" id="btn-shop-home">
+                    <span class="arm-grip gL"></span><span class="arm-grip gR"></span>
+                    <span class="hb-ico">🛒</span>
+                    <span class="hb-copy"><span class="hb-title">ARMORY</span><span class="hb-sub">Upgrades &amp; Customization</span></span>
+                </button>
+                <button class="btn home-btn home-btn-awards" id="btn-awards">
+                    <span class="hb-ico">🏆</span>
+                    <span class="hb-copy"><span class="hb-title">AWARDS</span><span class="hb-sub">Achievements &amp; Leaderboards</span></span>
+                </button>
             </div>
         </div>
     </div>
@@ -4593,8 +4756,8 @@
             renderer.setClearColor(0x000000, 0);
             const sc = new THREE.Scene();
             const cam = new THREE.PerspectiveCamera(32, Math.max(0.6, (canvas.clientWidth || 240) / (canvas.clientHeight || 168)), 0.1, 40);
-            cam.position.set(7.1, 4.6, 7.8);
-            cam.lookAt(0, 1.05, 0.2);
+            cam.position.set(6.4, 4.9, 7.4);
+            cam.lookAt(0, 0.85, 0.15);
             sc.add(new THREE.AmbientLight(0x8890a0, 0.55));
             const hemi = new THREE.HemisphereLight(0xfff3d0, 0x2a2418, 0.7);
             sc.add(hemi);
@@ -4606,14 +4769,41 @@
             const fill = new THREE.DirectionalLight(0x9ecbff, 0.28);
             fill.position.set(-6, 3, -4);
             sc.add(fill);
+            sc.fog = new THREE.Fog(0x0b0e12, 10, 28);
+            const metal = new THREE.MeshStandardMaterial({ color: 0x6a727c, metalness: 0.85, roughness: 0.32 });
+            const metalDark = new THREE.MeshStandardMaterial({ color: 0x3a4048, metalness: 0.8, roughness: 0.4 });
+            const goldTrim = new THREE.MeshStandardMaterial({ color: 0xC8A86B, metalness: 0.9, roughness: 0.28 });
+            [[4.2, 0.18, 0], [3.2, 0.16, 0.16], [2.2, 0.14, 0.30]].forEach(function (t) {
+                const pad = new THREE.Mesh(new THREE.CylinderGeometry(t[0], t[0] + 0.12, t[1], 48), t[0] > 3.5 ? metalDark : metal);
+                pad.position.y = t[2];
+                pad.receiveShadow = true;
+                pad.castShadow = true;
+                sc.add(pad);
+                const ring = new THREE.Mesh(new THREE.TorusGeometry(t[0] - 0.08, 0.035, 10, 48), goldTrim);
+                ring.rotation.x = Math.PI / 2;
+                ring.position.y = t[2] + t[1] * 0.5;
+                sc.add(ring);
+            });
             const ground = new THREE.Mesh(
-                new THREE.CircleGeometry(3.4, 32),
-                new THREE.ShadowMaterial({ opacity: 0.32 })
+                new THREE.CircleGeometry(5.2, 40),
+                new THREE.ShadowMaterial({ opacity: 0.42 })
             );
             ground.rotation.x = -Math.PI / 2;
+            ground.position.y = -0.02;
             ground.receiveShadow = true;
             sc.add(ground);
+            for (let s = 0; s < 5; s++) {
+                const screen = new THREE.Mesh(
+                    new THREE.PlaneGeometry(1.3 + Math.random() * 0.4, 0.8),
+                    new THREE.MeshBasicMaterial({ color: s % 2 ? 0x2a6a88 : 0x1a5a44, transparent: true, opacity: 0.35 })
+                );
+                const ang = -0.9 + s * 0.45;
+                screen.position.set(Math.sin(ang) * 7.2, 2.1 + (s % 3) * 0.35, -6.2 - Math.cos(ang) * 0.4);
+                screen.lookAt(0, 1.4, 0);
+                sc.add(screen);
+            }
             const mesh = buildShowcaseTank(selectedSkinColor());
+            mesh.position.y = 0.42;
             sc.add(mesh);
             _menuTank = { renderer: renderer, scene: sc, camera: cam, mesh: mesh, canvas: canvas, raf: 0 };
             syncMenuTankPreview();
