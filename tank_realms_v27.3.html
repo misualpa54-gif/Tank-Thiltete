@@ -905,7 +905,7 @@
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">v27.2</div>
+        <div class="version-tag" id="version-tag">v27.3</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -2903,7 +2903,7 @@
                     let speed = CONFIG.playerSpeed;
                     if (this.isPlayer) {
                         speed *= state.playerStats.speed / 100;
-                        if (clock.getElapsedTime() < (state.speedBoostUntil || 0)) speed *= 1 + 0.25 * (state.playerStats.adrenaline || 0); // v5: Adrenaline
+                        if ((state.runTime || 0) < (state.speedBoostUntil || 0)) speed *= 1 + 0.25 * Math.max(1, state.playerStats.adrenaline || 0); // v5 + v27.3 haste
                     } else {
                         speed *= (this.typeData?.speed || 1) * 0.55 * (this.speedMult || 1); // v26: level scaling
                     }
@@ -2994,10 +2994,10 @@
 
             takeDamage(amount) {
                 // v4: brief invulnerability window (after Second Wind)
-                if (this.isPlayer && clock.getElapsedTime() < (state.invulnUntil || 0)) return;
+                if (this.isPlayer && (state.runTime || 0) < (state.invulnUntil || 0)) return;
                 if (this.isPlayer && state.shieldUp) { // v24: Shield Generator absorbs a hit
                     state.shieldUp = false;
-                    state.shieldReadyAt = clock.getElapsedTime() + 18 / (state.playerStats.shield || 1);
+                    state.shieldReadyAt = (state.runTime || 0) + 18 / (state.playerStats.shield || 1);
                     SFX.heal();
                     showUpgradeNotification('🛡️ Shield absorbed the hit!');
                     if (player.shieldRing) player.shieldRing.visible = false;
@@ -3025,7 +3025,7 @@
                         state.reviveAvailable = false;
                         const swFrac = 0.5 + 0.25 * (((state.meta || {}).revive || 1) - 1);
                         this.hp = Math.ceil(this.maxHp * swFrac);
-                        state.invulnUntil = clock.getElapsedTime() + 2;
+                        state.invulnUntil = (state.runTime || 0) + 2;
                         createHealEffect(this.mesh.position);
                         showUpgradeNotification('✨ SECOND WIND — revived at ' + Math.round(swFrac * 100) + '% HP');
                         updateHUD();
@@ -3192,6 +3192,7 @@
                 if (d < 6.5) {
                     const isCrit = Math.random() * 100 < (state.playerStats.crit || 0);
                     e.takeDamage(dmg * (d < 3 ? 1 : 0.5) * (isCrit ? 2 : 1));
+                    if (!e.isDead) bumpComboFromHit(e);
                     if (e.isDead) {
                         handleEnemyKill(e, isCrit, 'missile');
                         enemies.splice(j, 1);
@@ -3659,6 +3660,11 @@
             el._t = setTimeout(() => { el.style.opacity = '0'; }, 2400);
         }
 
+        function bumpComboFromHit(enemy) { // v27.3: boss hits keep the combo window alive
+            if (!enemy || enemy.isDead || !enemy.isBoss) return;
+            state.combo = (state.combo || 0) + 1;
+            state.comboTimer = 3;
+        }
         function handleEnemyKill(enemy, isCrit, via) {
             // v26.4: one kill path so Field Medic / boss-bar / XP always fire
             if (!enemy || enemy._killHandled) return;
@@ -3670,7 +3676,7 @@
                 player.hp = Math.min(player.maxHp, player.hp + state.playerStats.healOnKill);
                 try { createHealEffect(player.mesh.position); } catch (err) {}
             }
-            if (state.playerStats.adrenaline) state.speedBoostUntil = clock.getElapsedTime() + 1.5;
+            if (state.playerStats.adrenaline) state.speedBoostUntil = (state.runTime || 0) + 1.5;
             try { trackKill(!!enemy.isBoss, !!isCrit, Math.floor(points * 0.5)); } catch (err) {}
             try { addKillReward(enemy); } catch (err) {}
             const tag = via === 'missile' ? ' 🚀' : (isCrit ? ' ⚡CRIT' : '');
@@ -3688,6 +3694,14 @@
                 state.bossActive = null;
                 state.bossCooldownUntil = (state.runTime || 0) + 12;
                 try { updateBossBar(); } catch (err) {}
+                try {
+                    if (state.isChoosingUpgrade) {
+                        state.pendingChoices = (state.pendingChoices || 0) + 1;
+                        state.nextChoiceIsBoss = true;
+                    } else {
+                        showUpgradeChoices('boss');
+                    }
+                } catch (err) {}
             }
             try { updateHUD(); } catch (err) {}
         }
@@ -4098,7 +4112,11 @@
                 overchargeUntil: state.overchargeUntil || 0,
                 runCoinBoost: state.runCoinBoost || 0,
                 shieldUp: !!state.shieldUp,
+                clocks: 'run',
                 lastMissileAt: state.lastMissileAt || 0,
+                speedBoostUntil: state.speedBoostUntil || 0,
+                invulnUntil: state.invulnUntil || 0,
+                shieldReadyAt: state.shieldReadyAt || 0,
                 combo: state.combo || 0,
                 bossCount: state.bossCount || 0,
                 enemiesIntroduced: [...(state.enemiesIntroduced || [])],
@@ -4264,7 +4282,13 @@
             player.mesh.add(player.shieldRing);
             state.shieldUp = resume ? !!opts.resume.shieldUp : !!useAegis;
             state.shieldReadyAt = 0;
-            state.lastMissileAt = resume ? (opts.resume.lastMissileAt || 0) : 0;
+            state.lastMissileAt = 0;
+            if (resume && opts.resume.clocks === 'run') {
+                state.lastMissileAt = opts.resume.lastMissileAt || 0;
+                state.speedBoostUntil = opts.resume.speedBoostUntil || 0;
+                state.invulnUntil = opts.resume.invulnUntil || 0;
+                if (opts.resume.shieldReadyAt) state.shieldReadyAt = opts.resume.shieldReadyAt;
+            }
             if (state.shieldUp) player.shieldRing.visible = true;
             player.maxHp = state.playerStats.maxHp;
             player.hp = player.maxHp;
@@ -4468,7 +4492,7 @@
                 if (!state.isChoosingUpgrade) showUpgradeChoices();
                 else state.pendingChoices = (state.pendingChoices || 0) + 1;
             } else if (kind === 'haste') {
-                state.speedBoostUntil = clock.getElapsedTime() + 10;
+                state.speedBoostUntil = (state.runTime || 0) + 10;
                 showUpgradeNotification('💨 Haste 10s');
             } else {
                 addXP(80 + state.level * 8);
@@ -4918,6 +4942,7 @@
                                     const isCrit = Math.random() * 100 < (state.playerStats.crit || 0);
                                     if (isCrit) dmg *= 2;
                                     enemy.takeDamage(dmg);
+                                    if (!enemy.isDead) bumpComboFromHit(enemy);
                                     if (isCrit) SFX.crit(); else SFX.hit(); // v23
                                     if ((state.playerStats.splash || 0) > 0) { // v24: Shell Shock
                                         const radius = 3.5 + state.playerStats.splash * 1.2;
@@ -4926,6 +4951,7 @@
                                             if (other === enemy || other.isDead) continue;
                                             if (other.mesh.position.distanceTo(b.group.position) < radius) {
                                                 other.takeDamage(b.group.userData.damage * 0.5);
+                                                if (!other.isDead) bumpComboFromHit(other);
                                                 if (other.isDead) {
                                                     handleEnemyKill(other, false, 'splash');
                                                     enemies.splice(j, 1);
@@ -5084,16 +5110,16 @@
             // v24: Missile Pod — homing missiles on a timer
             if ((state.playerStats.missile || 0) > 0 && state.targetEnemy && !state.targetEnemy.isDead) {
                 const mInt = 5 / state.playerStats.missile;
-                if (clock.getElapsedTime() - (state.lastMissileAt || 0) > mInt) {
-                    state.lastMissileAt = clock.getElapsedTime();
+                if ((state.runTime || 0) - (state.lastMissileAt || 0) > mInt) {
+                    state.lastMissileAt = state.runTime || 0;
                     fireHomingMissile(state.targetEnemy);
                 }
             }
             // v24: Shield Generator — recharge + ring visual
             if ((state.playerStats.shield || 0) > 0) {
                 const sInt = 18 / state.playerStats.shield;
-                if (!state.shieldReadyAt) state.shieldReadyAt = clock.getElapsedTime() + sInt;
-                else if (clock.getElapsedTime() >= state.shieldReadyAt && !state.shieldUp) {
+                if (!state.shieldReadyAt) state.shieldReadyAt = (state.runTime || 0) + sInt;
+                else if ((state.runTime || 0) >= state.shieldReadyAt && !state.shieldUp) {
                     state.shieldUp = true;
                     /* v26.6: skip the big toast — shield recharge is frequent and distracting */
                 }
@@ -5444,7 +5470,7 @@
             player.maxHp = state.playerStats.maxHp;
             player.hp = Math.ceil(player.maxHp * 0.5);
             player.mesh.position.set(x, 0, z);
-            state.invulnUntil = clock.getElapsedTime() + 3;
+            state.invulnUntil = (state.runTime || 0) + 3;
             state.shieldUp = false;
             state.isPlaying = true;
             state.gamePhase = 'playing';
@@ -5884,7 +5910,7 @@ function updateCombo(dt){
 // directly at the kill site in updatePhysics.
 
 // v4 (Upgrades-A): level-up choice overlay — gameplay freezes until a card is picked
-function showUpgradeChoices(){
+function showUpgradeChoices(kind){
     state.isChoosingUpgrade = true;
     state.input.isFiring = false;
     try {
@@ -5894,10 +5920,12 @@ function showUpgradeChoices(){
     const picks = [];
     while (picks.length < cardCount && pool.length) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
 
+    const isBossLoot = kind === 'boss' || state.nextChoiceIsBoss;
+    state.nextChoiceIsBoss = false;
     const overlay = document.createElement('div');
     overlay.id = 'upgrade-choice';
-    overlay.innerHTML = '<div class="uc-title">🌟 LEVEL ' + state.level + '</div>' +
-                        '<div class="uc-subtitle">Choose an upgrade</div>' +
+    overlay.innerHTML = '<div class="uc-title">' + (isBossLoot ? '🏆 BOSS REWARD' : ('🌟 LEVEL ' + state.level)) + '</div>' +
+                        '<div class="uc-subtitle">' + (isBossLoot ? 'Choose one bonus' : 'Choose an upgrade') + '</div>' +
                         '<div class="uc-cards"></div>';
     const cards = overlay.querySelector('.uc-cards');
     picks.forEach(up => {
@@ -6002,7 +6030,7 @@ function saveGame(){ // (uses the `store` defined at the top of the script)
             quality: state.quality || 'auto', tutorialTips: state.tutorialTips || {}, // v25
             levels: { best: state.bestLevels || 0 },
             progress: { maxCleared: state.maxCleared || 1 }, // v13: level-select unlock
-            consumables: state.consumables || { lucky: 0, headstart: 0 } // v11
+            consumables: state.consumables || { lucky: 0, headstart: 0, reroll: 0, overcharge: 0, aegis: 0 } // v11/v27.3
         }));
     } catch(e) { /* storage unavailable (private mode etc.) — ignore */ }
 }
@@ -6017,7 +6045,7 @@ function loadGame(){
         state.skins = d.skins || { owned: ['amber'], selected: 'amber' };
         state.bestCasual = (d.casual && d.casual.best) || 0;
         state.bestLevels = (d.levels && d.levels.best) || 0;
-        state.consumables = d.consumables || { lucky: 0, headstart: 0 }; // v11
+        state.consumables = d.consumables || { lucky: 0, headstart: 0, reroll: 0, overcharge: 0, aegis: 0 }; // v11/v27.3
         state.stats = d.stats || null; // v23
         state.achUnlocked = d.achUnlocked || [];
         state.daily = d.daily || null;
