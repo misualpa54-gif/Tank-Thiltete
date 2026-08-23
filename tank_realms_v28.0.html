@@ -947,7 +947,7 @@
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">v27.9</div>
+        <div class="version-tag" id="version-tag">v28.0</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -1301,25 +1301,25 @@
         };
         // v27.4: each enemy shot has its own look, speed, hang-time, and (for some) a seek
         const ENEMY_SHOT = {
-            scout:      { color: 0xffe066, speed: 44, life: 1.00, style: 'spark', home: 0.00 },
-            soldier:    { color: 0xff3b3b, speed: 54, life: 1.20, style: 'bolt',  home: 0.30 },
-            heavy:      { color: 0xff8a3d, speed: 32, life: 1.70, style: 'slug',  home: 0.28 },
-            sniper:     { color: 0xd8b4fe, speed: 92, life: 1.90, style: 'lance', home: 0.18 },
-            healer:     { color: 0x4ade80, speed: 36, life: 1.10, style: 'orb',   home: 0.00 },
-            berserker:  { color: 0xfb7185, speed: 60, life: 0.95, style: 'bolt',  home: 0.00 },
-            bomber:     { color: 0xf43f5e, speed: 40, life: 0.80, style: 'spark', home: 0.00 },
-            phantom:    { color: 0xcbd5e1, speed: 48, life: 1.35, style: 'orb',   home: 0.40 },
-            gunner:     { color: 0xc084fc, speed: 66, life: 0.85, style: 'spark', home: 0.26 },
-            skirmisher: { color: 0x2dd4bf, speed: 56, life: 1.15, style: 'bolt',  home: 0.22 },
-            wasp:       { color: 0xfde047, speed: 74, life: 0.70, style: 'spark', home: 0.00 },
-            raider:     { color: 0xfb7185, speed: 68, life: 0.90, style: 'bolt',  home: 0.20 },
-            juggernaut: { color: 0x94a3b8, speed: 26, life: 2.50, style: 'slug',  home: 0.58 },
-            warlord:    { color: 0xf87171, speed: 38, life: 1.85, style: 'slug',  home: 0.46 },
-            colossus:   { color: 0xa78bfa, speed: 34, life: 2.05, style: 'orb',   home: 0.40 },
-            nova:       { color: 0x67e8f9, speed: 42, life: 1.55, style: 'spark', home: 0.30 },
-            titan:      { color: 0x93c5fd, speed: 30, life: 1.70, style: 'slug',  home: 0.36 },
-            tempest:    { color: 0x38bdf8, speed: 58, life: 1.45, style: 'lance', home: 0.50 },
-            fortress:   { color: 0xfbbf24, speed: 28, life: 2.30, style: 'orb',   home: 0.24 }
+            scout:      { color: 0xffe066, speed: 40, life: 1.45, style: 'spark', home: 0.10 },
+            soldier:    { color: 0xff3b3b, speed: 48, life: 1.50, style: 'bolt',  home: 0.18 },
+            heavy:      { color: 0xff8a3d, speed: 30, life: 1.90, style: 'slug',  home: 0.16 },
+            sniper:     { color: 0xd8b4fe, speed: 62, life: 1.85, style: 'lance', home: 0.12 },
+            healer:     { color: 0x4ade80, speed: 34, life: 1.40, style: 'orb',   home: 0.08 },
+            berserker:  { color: 0xfb7185, speed: 50, life: 1.35, style: 'bolt',  home: 0.10 },
+            bomber:     { color: 0xf43f5e, speed: 38, life: 1.20, style: 'spark', home: 0.00 },
+            phantom:    { color: 0xcbd5e1, speed: 44, life: 1.55, style: 'orb',   home: 0.20 },
+            gunner:     { color: 0xc084fc, speed: 52, life: 1.30, style: 'spark', home: 0.16 },
+            skirmisher: { color: 0x2dd4bf, speed: 48, life: 1.45, style: 'bolt',  home: 0.14 },
+            wasp:       { color: 0xfde047, speed: 56, life: 1.25, style: 'spark', home: 0.08 },
+            raider:     { color: 0xfb7185, speed: 54, life: 1.30, style: 'bolt',  home: 0.14 },
+            juggernaut: { color: 0x94a3b8, speed: 28, life: 2.40, style: 'slug',  home: 0.26 },
+            warlord:    { color: 0xf87171, speed: 36, life: 1.90, style: 'slug',  home: 0.22 },
+            colossus:   { color: 0xa78bfa, speed: 32, life: 2.10, style: 'orb',   home: 0.20 },
+            nova:       { color: 0x67e8f9, speed: 40, life: 1.70, style: 'spark', home: 0.14 },
+            titan:      { color: 0x93c5fd, speed: 30, life: 1.80, style: 'slug',  home: 0.18 },
+            tempest:    { color: 0x38bdf8, speed: 50, life: 1.55, style: 'lance', home: 0.24 },
+            fortress:   { color: 0xfbbf24, speed: 28, life: 2.20, style: 'orb',   home: 0.12 }
         };
         const _shotSeek = new THREE.Vector3();
         const _shotLook = new THREE.Vector3();
@@ -2948,23 +2948,23 @@
                 const bossTypes = { warlord:1, colossus:1, nova:1, titan:1, tempest:1, fortress:1 };
                 if (!isPlayer && !bossTypes[type]) {
                     const canvas = document.createElement('canvas');
-                    canvas.width = 256;
-                    canvas.height = 64;
+                    canvas.width = 384;
+                    canvas.height = 96;
                     const tex = new THREE.CanvasTexture(canvas);
                     tex.minFilter = THREE.LinearFilter;
                     tex.magFilter = THREE.LinearFilter;
                     const mat = new THREE.SpriteMaterial({
-                        map: tex, transparent: true, depthTest: false, depthWrite: false, opacity: 0.9
+                        map: tex, transparent: true, depthTest: false, depthWrite: false, opacity: 1
                     });
                     const spr = new THREE.Sprite(mat);
-                    const s = Math.max(0.85, scale);
-                    spr.scale.set(2.35 * s, 0.58 * s, 1);
-                    spr.renderOrder = 10;
+                    const s = Math.max(1, scale);
+                    spr.scale.set(4.8 * s, 1.55 * s, 1);
+                    spr.renderOrder = 20;
                     this.hpBar = spr;
                     this._hpCanvas = canvas;
                     this._hpTex = tex;
                     this._hpName = (this.typeData && this.typeData.name) || type;
-                    this._hpBarLift = 2.85 * scale + 0.85;
+                    this._hpBarLift = 3.4 * scale + 1.2;
                     scene.add(spr);
                     this.updateHpBar();
                 }
@@ -3136,16 +3136,23 @@
                 const frac = Math.max(0, Math.min(1, this.hp / (this.maxHp || 1)));
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.font = '600 20px system-ui, sans-serif';
-                ctx.fillStyle = 'rgba(0,0,0,0.55)';
-                ctx.fillText(this._hpName || '', w / 2 + 1, 18 + 1);
-                ctx.fillStyle = 'rgba(255,255,255,0.88)';
-                ctx.fillText(this._hpName || '', w / 2, 18);
-                const bx = 22, by = 36, bw = w - 44, bh = 14;
-                ctx.fillStyle = 'rgba(0,0,0,0.62)';
+                const name = this._hpName || 'Tank';
+                ctx.fillStyle = 'rgba(0,0,0,0.72)';
+                ctx.fillRect(16, 6, w - 32, 44);
+                ctx.strokeStyle = 'rgba(255,214,80,0.85)';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(16, 6, w - 32, 44);
+                ctx.font = '800 34px system-ui, sans-serif';
+                ctx.lineWidth = 6;
+                ctx.strokeStyle = 'rgba(0,0,0,0.95)';
+                ctx.strokeText(name, w / 2, 28);
+                ctx.fillStyle = '#ffe566';
+                ctx.fillText(name, w / 2, 28);
+                const bx = 22, by = 58, bw = w - 44, bh = 22;
+                ctx.fillStyle = 'rgba(0,0,0,0.78)';
                 ctx.fillRect(bx, by, bw, bh);
-                ctx.fillStyle = 'rgba(255,255,255,0.18)';
-                ctx.fillRect(bx, by, bw, 1);
+                ctx.fillStyle = 'rgba(255,255,255,0.22)';
+                ctx.fillRect(bx, by, bw, 2);
                 const col = frac < 0.3 ? '#ef4444' : frac < 0.6 ? '#facc15' : '#4ade80';
                 ctx.fillStyle = col;
                 ctx.fillRect(bx + 2, by + 2, Math.max(0, (bw - 4) * frac), bh - 4);
@@ -3215,20 +3222,26 @@
 
             const d = dir.clone();
             if (!source.isPlayer && player && !player.isDead) {
-                // v27.4: pitch toward the tank body so valley/ridge shots no longer fly over the player
-                const ty = (player.mesh.position.y + 1.15) - bulletGroup.position.y;
-                const horiz = Math.hypot(d.x, d.z) || 1;
-                d.y = ty / horiz;
+                const tx = player.mesh.position.x - bulletGroup.position.x;
+                const ty = (player.mesh.position.y + 1.2) - bulletGroup.position.y;
+                const tz = player.mesh.position.z - bulletGroup.position.z;
+                const dist = Math.hypot(tx, ty, tz) || 1;
+                const patterned = source.type === 'nova' || source.type === 'fortress';
+                if (!patterned) d.set(tx, ty, tz);
+                else d.y += ty / Math.max(14, dist);
             }
             d.normalize();
-            const speed = source.isPlayer ? CONFIG.bulletSpeed : shot.speed;
-            const life = source.isPlayer ? 1.2 : shot.life;
-            const home = source.isPlayer ? 0 : enemyHomeRate(source);
+            const speed = source.isPlayer ? CONFIG.bulletSpeed : Math.min(58, shot.speed);
+            const life = source.isPlayer ? 1.2 : Math.max(1.25, shot.life);
+            const home = source.isPlayer ? 0 : Math.min(0.26, enemyHomeRate(source));
             const style = source.isPlayer ? 'bolt' : shot.style;
-            if (style === 'slug') bulletGroup.scale.setScalar(1.55);
-            else if (style === 'orb') bulletGroup.scale.setScalar(1.45);
-            else if (style === 'spark') bulletGroup.scale.setScalar(0.62);
-            else if (style === 'lance') { bulletGroup.scale.set(0.62, 0.62, 1.85); trail.scale.set(0.55, 2.1, 0.55); }
+            if (!source.isPlayer) {
+                if (style === 'slug') bulletGroup.scale.setScalar(1.85);
+                else if (style === 'orb') bulletGroup.scale.setScalar(1.75);
+                else if (style === 'spark') bulletGroup.scale.setScalar(1.25);
+                else if (style === 'lance') { bulletGroup.scale.set(1.05, 1.05, 2.1); trail.scale.set(0.7, 1.8, 0.7); }
+                else bulletGroup.scale.setScalar(1.35);
+            }
             bulletGroup.lookAt(bulletGroup.position.clone().add(d));
             bulletGroup.userData = {
                 vel: d.multiplyScalar(speed),
@@ -3733,7 +3746,7 @@
             const L = state.level || 1;
             return {
                 hp:  1 + Math.max(0, L - 1) * 0.05  + Math.max(0, L - 10) * 0.03  + Math.max(0, L - 20) * 0.05,
-                dmg: 1.10 + Math.max(0, L - 1) * 0.032 + Math.max(0, L - 10) * 0.028 + Math.max(0, L - 20) * 0.035,
+                dmg: (1.10 + Math.max(0, L - 1) * 0.032 + Math.max(0, L - 10) * 0.028 + Math.max(0, L - 20) * 0.035) * 1.5,
                 spd: 1 + Math.min(0.35, Math.max(0, L - 1) * 0.01),
                 pts: 1 + Math.max(0, L - 1) * 0.05  + Math.max(0, L - 12) * 0.03
             };
@@ -5013,13 +5026,14 @@
             for (let i = bullets.length - 1; i >= 0; i--) {
                 const b = bullets[i];
                 const ud = b.group.userData;
-                if (!ud.isPlayer && ud.home && player && !player.isDead) {
+                if (!ud.isPlayer && player && !player.isDead) {
+                    const turn = Math.min(0.26, ud.home || 0.07);
                     _shotSeek.set(
                         player.mesh.position.x - b.group.position.x,
-                        (player.mesh.position.y + 1.15) - b.group.position.y,
+                        (player.mesh.position.y + 1.2) - b.group.position.y,
                         player.mesh.position.z - b.group.position.z
                     ).normalize().multiplyScalar(ud.speed || CONFIG.bulletSpeed);
-                    ud.vel.lerp(_shotSeek, 1 - Math.pow(1 - ud.home, dt * 60));
+                    ud.vel.lerp(_shotSeek, 1 - Math.pow(1 - turn, dt * 60));
                     b.group.lookAt(_shotLook.copy(b.group.position).add(ud.vel));
                 }
                 b.group.position.add(_tv1.copy(ud.vel).multiplyScalar(dt)); // FIX (Tier 3): no per-frame allocation
