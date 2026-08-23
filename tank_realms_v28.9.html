@@ -131,6 +131,7 @@
         .hp-text { font-size: 13px; font-weight: 700; min-width: 48px; text-shadow: 0 1px 3px rgba(0,0,0,0.95); }
         #minimap { margin-top: 0; }
         .pause-build { margin: 2px 0 6px; text-align: center; }
+        .pb-revives { margin-top: 10px; color: rgba(253,230,138,0.9); font-size: 13px; font-weight: 600; }
         .pb-title { color: rgba(255,255,255,0.5); font-size: 11px; letter-spacing: 3px; margin-bottom: 8px; }
         .pb-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 340px; }
         .pb-chip {
@@ -962,7 +963,7 @@
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">v28.8</div>
+        <div class="version-tag" id="version-tag">v28.9</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -1087,6 +1088,7 @@
                 <span class="pb-chip">🎯 <b id="stat-crit">0</b>%</span>
                 <span class="pb-chip">🔱 <b id="stat-multishot">0</b></span>
             </div>
+            <div id="pause-revives" class="pb-revives">✨ Field Revives this run: <b id="pause-revive-count">0</b></div>
         </div>
         <button class="btn" id="btn-resume">Resume</button>
         <button class="btn" id="btn-pause-settings">⚙ Settings</button>
@@ -3694,6 +3696,8 @@
         function pauseGame() {
             if (state.isChoosingUpgrade || state.marketOpen) return;
             if (!state.isPlaying || state.gamePhase !== 'playing') return;
+            const rv = document.getElementById('pause-revive-count');
+            if (rv) rv.textContent = state.continuesThisRun || 0;
             SFX.engineStop(); SFX.musicStop(); // v23+v24
             state.gamePhase = 'paused';
             needsRender = true; // FIX (Tier 3): one final render for the pause backdrop
