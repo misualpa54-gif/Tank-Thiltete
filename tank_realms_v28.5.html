@@ -947,7 +947,7 @@
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">v28.4</div>
+        <div class="version-tag" id="version-tag">v28.5</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -1298,7 +1298,7 @@
             squsasher:    { name: "Squsasher",    color: 0x0d9488, hp: 80,  speed: 1.6,  damage: 17, fireRate: 0.7,  size: 0.8,  points: 280, desc: "Skirmisher plus — fast curving fire" },
             deathbringer: { name: "Deathbringer", color: 0x7f1d1d, hp: 55,  speed: 1.7,  damage: 28, fireRate: 0.45, size: 0.9,  points: 220, desc: "Bomber that also shoots seeking sparks" },
             phantasm:     { name: "Phantasm",     color: 0xf1f5f9, hp: 70,  speed: 1.25, damage: 16, fireRate: 0.55, size: 0.95, points: 260, desc: "Deeper phantom — slow tracking orbs" },
-            gunnier:      { name: "Gunnier",      color: 0x6d28d9, hp: 110, speed: 0.68, damage: 12, fireRate: 0.55, size: 1.2,  points: 240, desc: "Burst gunner — shells snap onto you" },
+            gunnier:      { name: "Gunnier",      color: 0x6d28d9, hp: 110, speed: 0.68, damage: 12, fireRate: 0.55, size: 1.2,  points: 240, desc: "Single seeking shots — dodgeable curve" },
             tombraider:   { name: "TombRaider",   color: 0xbe123c, hp: 95,  speed: 1.85, damage: 17, fireRate: 0.6,  size: 0.9,  points: 280, desc: "Raider plus — curving dash fire" },
             hammer:       { name: "Hammer",       color: 0x0f172a, hp: 520, speed: 0.34, damage: 34, fireRate: 0.2,  size: 2.15, points: 850, desc: "Juggernaut plus — heavy seeking slugs" },
             // v6(C): bosses
@@ -1322,7 +1322,7 @@
             phantom:    { color: 0xcbd5e1, speed: 26, life: 2.10, style: 'orb',   home: 0.09 },
             gunner:     { color: 0xc084fc, speed: 46, life: 1.25, style: 'spark', home: 0.00 },
             skirmisher: { color: 0x2dd4bf, speed: 44, life: 1.40, style: 'bolt',  home: 0.00 },
-            wasp:       { color: 0xfde047, speed: 50, life: 1.40, style: 'spark', home: 0.80 },
+            wasp:       { color: 0xfde047, speed: 40, life: 1.40, style: 'spark', home: 0.10 },
             raider:     { color: 0xfb7185, speed: 48, life: 1.25, style: 'bolt',  home: 0.00 },
             juggernaut: { color: 0x94a3b8, speed: 24, life: 2.40, style: 'slug',  home: 0.16 },
             scouter:      { color: 0x86efac, speed: 10, life: 2.40, style: 'spark', home: 0.09 },
@@ -1332,7 +1332,7 @@
             squsasher:    { color: 0x2dd4bf, speed: 40, life: 1.50, style: 'bolt',  home: 0.09 },
             deathbringer: { color: 0xef4444, speed: 25, life: 1.80, style: 'spark', home: 0.09 },
             phantasm:     { color: 0xf8fafc, speed: 28, life: 2.10, style: 'orb',   home: 0.10 },
-            gunnier:      { color: 0xa78bfa, speed: 35, life: 1.60, style: 'spark', home: 0.80 },
+            gunnier:      { color: 0xa78bfa, speed: 30, life: 1.70, style: 'spark', home: 0.30 },
             tombraider:   { color: 0xfb7185, speed: 31, life: 1.70, style: 'bolt',  home: 0.09 },
             hammer:       { color: 0x64748b, speed: 30, life: 2.20, style: 'slug',  home: 0.15 },
             warlord:    { color: 0xf87171, speed: 36, life: 1.90, style: 'slug',  home: 0.22 },
@@ -5038,7 +5038,11 @@
                     e.mesh.traverse(c => {
                         if (c.isMesh && c.material) { c.material.transparent = true; c.material.opacity = cloackO; }
                     });
-                } else if (e.type === 'gunner' || e.type === 'gunnier') {
+                } else if (e.type === 'gunnier') {
+                    if (dist > 22) step(_sv1.set(toPlayer.x, toPlayer.z).normalize());
+                    e.aimAt(player.mesh.position, dt);
+                    if (enemyFireRoll(0.012 * (ENEMY_TYPES.gunnier.fireRate || 0.55), dt)) shoot(e);
+                } else if (e.type === 'gunner') {
                     if (dist > 22) step(_sv1.set(toPlayer.x, toPlayer.z).normalize());
                     e.aimAt(player.mesh.position, dt);
                     if ((e.burstLeft || 0) > 0) {
@@ -5049,7 +5053,7 @@
                         }
                     } else if (enemyFireRoll(0.003, dt)) {
                         e.burstLeft = 3;
-                    } // v10
+                    }
                  } else if (e.type === 'berserker') {
                     step(_sv1.set(toPlayer.x, toPlayer.z).normalize());
                     e.aimAt(player.mesh.position, dt); // FIX (Tier 4)
