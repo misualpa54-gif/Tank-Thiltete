@@ -963,7 +963,7 @@
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">v28.9</div>
+        <div class="version-tag" id="version-tag">v29.0</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -4312,8 +4312,66 @@
                 nextFunAt: state.nextFunAt,
                 funKind: state.funKind || null,
                 funUntil: state.funUntil || 0,
-                blastUntil: state.blastUntil || 0
+                blastUntil: state.blastUntil || 0,
+                bossPending: !!state.bossPending,
+                field: serializeField()
             };
+        }
+        function serializeField() {
+            const list = [];
+            for (const e of enemies) {
+                if (!e || e.isDead || !e.mesh || !e.type) continue;
+                list.push({
+                    type: e.type,
+                    hp: Math.round(e.hp),
+                    maxHp: Math.round(e.maxHp),
+                    x: +e.mesh.position.x.toFixed(1),
+                    z: +e.mesh.position.z.toFixed(1),
+                    elite: !!e.isElite,
+                    boss: !!e.isBoss,
+                    armorFlat: e.armorFlat || 0
+                });
+                if (list.length >= 22) break;
+            }
+            return list;
+        }
+        function restoreField(list) {
+            if (!list || !list.length || !ENEMY_TYPES) return;
+            state.bossActive = null;
+            for (const row of list) {
+                if (!row || !ENEMY_TYPES[row.type]) continue;
+                if (row.boss) {
+                    const boss = new Tank(ENEMY_TYPES[row.type].color, false, row.type);
+                    boss.isBoss = true;
+                    const kind = (typeof BOSS_KINDS !== 'undefined' && BOSS_KINDS.find(k => k.type === row.type)) || { interval: 3.4 };
+                    boss.attackInterval = kind.interval;
+                    boss.nextAttackAt = clock.getElapsedTime() + 1.6;
+                    boss.damageMult = enemyLevelScale().dmg;
+                    boss.maxHp = row.maxHp || boss.maxHp;
+                    boss.hp = Math.max(1, Math.min(boss.maxHp, row.hp != null ? row.hp : boss.maxHp));
+                    boss.mesh.position.set(row.x || 0, 0, row.z || 0);
+                    enemies.push(boss);
+                    state.bossActive = boss;
+                    try { if (boss.updateHpBar) boss.updateHpBar(); updateBossBar(); } catch (err) {}
+                    continue;
+                }
+                const e = makeScaledEnemy(row.type, row.x || 0, row.z || 0, true);
+                if (!e) continue;
+                if (row.maxHp) e.maxHp = row.maxHp;
+                e.hp = Math.max(1, Math.min(e.maxHp, row.hp != null ? row.hp : e.maxHp));
+                if (row.armorFlat) e.armorFlat = row.armorFlat;
+                if (row.elite && !e.isElite) {
+                    e.isElite = true;
+                    e._hpName = 'Elite ' + ((ENEMY_TYPES[row.type] && ENEMY_TYPES[row.type].name) || row.type);
+                    e.mesh.traverse(c => {
+                        if (c.isMesh && c.material && c.material.color) {
+                            c.material.color.offsetHSL(0.08, 0.25, 0.08);
+                            if (c.material.emissive) c.material.emissive.setHex(0x664400);
+                        }
+                    });
+                }
+                if (e.updateHpBar) e.updateHpBar();
+            }
         }
 
         function quickSaveFromPause() { // v13: save in place, keep playing
@@ -4488,6 +4546,8 @@
                 player.mesh.position.set(opts.resume.x, 0, opts.resume.z);
                 if (typeof opts.resume.bossCount === 'number') state.bossCount = opts.resume.bossCount;
                 loadBiome(opts.resume.biome);
+                try { restoreField(opts.resume.field); } catch (err) {}
+                if (opts.resume.bossPending && !state.bossActive) state.bossPending = true;
             } else {
                 loadBiome(Math.floor((state.level - 1) / 3));
             }
@@ -4772,8 +4832,8 @@
 
         // v26: single place where an enemy is built and level-scaled, so every spawn
         // path (spawner, wasp packs, boss reinforcements) ramps identically.
-        function makeScaledEnemy(type, x, z) {
-            try { showEnemyIntro(type); } catch (err) {}
+        function makeScaledEnemy(type, x, z, fromSave) {
+            if (!fromSave) { try { showEnemyIntro(type); } catch (err) {} }
             const sc = enemyLevelScale();
             const enemy = new Tank(ENEMY_TYPES[type].color, false, type);
             let hpMult = sc.hp;
@@ -4787,7 +4847,7 @@
             enemy.pointValue = Math.round((ENEMY_TYPES[type].points || 100) * sc.pts);
             if (type === 'juggernaut' || type === 'hammer') enemy.armorFlat = 3 + state.level * 0.12;
             // v26.7: elites from lv15 — a gold-tinted tougher twin, extra coins, still fair
-            if (state.level >= 15 && type !== 'juggernaut' && Math.random() < 0.14) {
+            if (!fromSave && state.level >= 15 && type !== 'juggernaut' && type !== 'hammer' && Math.random() < 0.14) {
                 enemy.isElite = true;
                 enemy.hp = enemy.maxHp = Math.round(enemy.maxHp * 1.4);
                 enemy.damageMult = (enemy.damageMult || 1) * 1.15;
