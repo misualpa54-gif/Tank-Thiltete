@@ -947,7 +947,7 @@
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">v28.1</div>
+        <div class="version-tag" id="version-tag">v28.2</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -3089,10 +3089,7 @@
                     incoming = incoming - (this.armorFlat || 0);
                 }
                 const actualDamage = Math.max(this.isPlayer ? 3 : 1, incoming);
-                if (this.isPlayer) {
-                    SFX.hurt(); SFX.vibrate(35);
-                    state.regenLockUntil = (state.runTime || 0) + 2.4;
-                }
+                if (this.isPlayer) { SFX.hurt(); SFX.vibrate(35); }
                 this.hp -= actualDamage;
                 this.updateHpBar();
                 if (this.isBoss) try { updateBossBar(); } catch (err) {}
@@ -3898,14 +3895,14 @@
             { id:'dmg',    icon:'💥', name:'Machined Barrels',   desc:'+8% base damage (per level)',      base:300,  growth:1.6, max:12 },
             { id:'spd',    icon:'⚡', name:'Turbine Engine',     desc:'+6% base speed (per level)',       base:250,  growth:1.5, max:8 },
             { id:'armor',  icon:'🛡️', name:'Spacer Plating',     desc:'+4 starting armor (per level)',    base:350,  growth:1.5, max:6 },
-            { id:'regen',  icon:'🔄', name:'Repair Kit',         desc:'+0.35 HP/s regen (per level, combat cap 1.2/s)', base:400,  growth:1.5, max:6 },
+            { id:'regen',  icon:'🔄', name:'Repair Kit',         desc:'+1 HP/s regen (per level)',        base:400,  growth:1.5, max:6 },
             { id:'revive', icon:'✨', name:'Second Wind',        desc:'Revive once/run — lvl2 revives at 75% HP', base:1500, growth:4.0, max:2 },
             { id:'cards',  icon:'🃏', name:'Extra Choice',       desc:'+1 reroll each level-up (still pick only one card)', base:2500, growth:3.2, max:2 },
             // v26: endless coin sinks — these never max out
             { id:'dmg_inf', icon:'🔧', name:'Master Gunsmith',   desc:'+1% base damage (UNLIMITED — price rises fast)',   base:500, growth:1.34, max:Infinity },
             { id:'hp_inf',  icon:'🧱', name:'Reinforced Alloy',  desc:'+2 starting Max HP (UNLIMITED — price rises fast)', base:450, growth:1.32, max:Infinity },
             { id:'armor_inf', icon:'🪨', name:'Layered Plate',   desc:'+1 starting armor (UNLIMITED — price rises fast)',  base:600, growth:1.38, max:Infinity },
-            { id:'regen_inf', icon:'💚', name:'Nano Forge',      desc:'+0.15 HP/s regen (UNLIMITED, combat cap 1.2/s)',    base:700, growth:1.40, max:Infinity },
+            { id:'regen_inf', icon:'💚', name:'Nano Forge',      desc:'+0.5 HP/s regen (UNLIMITED — price rises fast)',    base:700, growth:1.40, max:Infinity },
             { id:'fire_inf',  icon:'🔥', name:'Autoloader',      desc:'+2% fire rate (UNLIMITED — price rises fast)',      base:550, growth:1.36, max:Infinity },
             { id:'crit_inf',  icon:'🎯', name:'Lucky Optics',    desc:'+1% crit chance (UNLIMITED — price rises fast)',    base:650, growth:1.40, max:Infinity },
             { id:'optics_inf', icon:'🔭', name:'Precision Optics', desc:'+1% fire rate (UNLIMITED — steep)', base:480, growth:1.33, max:Infinity },
@@ -3935,7 +3932,7 @@
             stats.damage += d('dmg') * 8 + d('dmg_inf') * 1;
             stats.speed += d('spd') * 6;
             stats.armor += d('armor') * 4 + d('armor_inf') * 1;
-            stats.regen += d('regen') * 0.35 + d('regen_inf') * 0.15;
+            stats.regen += d('regen') * 1 + d('regen_inf') * 0.5;
             stats.fireRate += d('fire_inf') * 2 + d('optics_inf') * 1;
             stats.crit += d('crit_inf') * 1;
         }
@@ -4365,11 +4362,11 @@
                 state.playerStats.damage += (meta.dmg || 0) * 8;
                 state.playerStats.speed += (meta.spd || 0) * 6;
                 state.playerStats.armor += (meta.armor || 0) * 4;
-                state.playerStats.regen += (meta.regen || 0) * 0.35;
+                state.playerStats.regen += (meta.regen || 0) * 1;
                 state.playerStats.damage += (meta.dmg_inf || 0) * 1;
                 state.playerStats.maxHp += (meta.hp_inf || 0) * 2;
                 state.playerStats.armor += (meta.armor_inf || 0) * 1;
-                state.playerStats.regen += (meta.regen_inf || 0) * 0.15;
+                state.playerStats.regen += (meta.regen_inf || 0) * 0.5;
                 state.playerStats.fireRate += (meta.fire_inf || 0) * 2;
                 state.playerStats.crit += (meta.crit_inf || 0) * 1;
                 state.playerStats.fireRate += (meta.optics_inf || 0) * 1;
@@ -4785,7 +4782,7 @@
                     const d = Math.sqrt(d2);
                     const fall = 1 - d / 13;
                     const base = (ENEMY_TYPES[e.type]?.damage || 12) * (e.damageMult || 1) * (state.diffMult.dmg || 1);
-                    dps += base * 0.22 * fall;
+                    dps += base * 0.12 * fall;
                 }
                 if (dps > 0) {
                     state._presenceAcc = (state._presenceAcc || 0) + dps * dt;
@@ -4801,19 +4798,14 @@
             updateSupplyDrops(dt);
 
             // Health regen
-            const regenNow = Math.min(1.2, state.playerStats.regen || 0);
-            const regenOk = (state.runTime || 0) >= (state.regenLockUntil || 0);
-            if (regenOk && regenNow > 0 && clock.getElapsedTime() - state.lastRegenTime > 1) {
-                if (player.hp < player.maxHp) {
-                    player.hp = Math.min(player.maxHp, player.hp + regenNow);
-                    const overlay = dom('heal-overlay');
-                    if (overlay) {
-                        overlay.style.opacity = '0.3';
-                        setTimeout(() => { if (overlay) overlay.style.opacity = '0'; }, 200);
-                    }
-                    updateHUD();
+            const regenNow = state.playerStats.regen || 0;
+            if (regenNow > 0 && player.hp < player.maxHp) {
+                player.hp = Math.min(player.maxHp, player.hp + regenNow * dt);
+                state._regenHud = (state._regenHud || 0) + dt;
+                if (state._regenHud > 0.2) {
+                    state._regenHud = 0;
+                    try { updateHUD(); } catch (err) {}
                 }
-                state.lastRegenTime = clock.getElapsedTime();
             }
 
             // Enhanced Auto-aim with Sticky Targeting
@@ -5088,7 +5080,7 @@
                 // Environment Object Check (Trees, Rocks)
                 // FIX (Tier 3): spatial grid — the bullet now checks only the ~3 cells near
                 // it instead of scanning every environment object (incl. 1,250 grass clumps).
-                if (!hit && ud.isPlayer) {
+                if (!hit) {
                     for (const col of collidersNear(b.group.position.x, b.group.position.z)) {
                         const dx = b.group.position.x - col.x;
                         const dz = b.group.position.z - col.z;
@@ -5190,11 +5182,14 @@
                     }
                 }
 
-                if (hit || b.group.userData.life <= 0) {
-                    if (!hit && b.group.position.y < getTerrainHeight(b.group.position.x, b.group.position.z)) {
-                        // Hit ground
+                if (!hit) {
+                    const gy = getTerrainHeight(b.group.position.x, b.group.position.z);
+                    if (b.group.position.y < gy + 0.2) {
+                        hit = true;
                         createExplosion(b.group.position, 5, 0x6a6a6a, 'ground');
                     }
+                }
+                if (hit || ud.life <= 0) {
                     scene.remove(b.group);
                     bullets.splice(i, 1);
                 }
@@ -5567,7 +5562,7 @@
             dom('stat-speed').textContent = state.playerStats.speed;
             dom('stat-damage').textContent = state.playerStats.damage;
             dom('stat-armor').textContent = state.playerStats.armor;
-            dom('stat-regen').textContent = Math.min(1.2, state.playerStats.regen || 0);
+            dom('stat-regen').textContent = state.playerStats.regen || 0;
             if (dom('stat-crit')) dom('stat-crit').textContent = state.playerStats.crit || 0; // v7
             if (dom('stat-multishot')) dom('stat-multishot').textContent = state.playerStats.multishot || 0;
             
@@ -6072,7 +6067,7 @@ const CHOICE_UPGRADES = [
  {stat:'damage',   amount:15, icon:'💥', text:'Heavy Rounds',     desc:'Shell damage +15%'},
  {stat:'fireRate', amount:12, icon:'🔥', text:'Rapid Loader',     desc:'Fire rate +12%'},
  {stat:'maxHp',    amount:20, icon:'❤️', text:'Reinforced Hull',  desc:'Max HP +20, heal 20'},
- {stat:'regen',    amount:0.5, icon:'🔄', text:'Nano Repair',      desc:'Regeneration +0.5/s (combat cap 1.2/s)'},
+ {stat:'regen',    amount:2,  icon:'🔄', text:'Nano Repair',      desc:'Regeneration +2/s'},
  {stat:'armor',    amount:8,  icon:'🛡️', text:'Composite Armor',  desc:'Armor +8 (less damage taken)'},
  {stat:'crit',     amount:10, icon:'🎯', text:'Deadeye Optics', desc:'Crit chance +10% — crits deal 2× damage'},
  {stat:'multishot',amount:1,  icon:'🔱', text:'Split Cannon',     desc:'+1 projectile per shot (stacks)'},
