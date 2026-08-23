@@ -905,7 +905,7 @@
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">v27.3</div>
+        <div class="version-tag" id="version-tag">v27.4</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -1257,6 +1257,41 @@
             tempest:  { name: "TEMPEST",  color: 0x0ea5e9, hp: 650, speed: 0.9,  damage: 14, fireRate: 0.5, size: 2.2, points: 2400, desc: "BOSS — blinks around the arena" },
             fortress: { name: "FORTRESS", color: 0x713f12, hp: 850, speed: 0.15, damage: 10, fireRate: 0.3, size: 3.1, points: 2600, desc: "BOSS — unending bullet spirals" }
         };
+        // v27.4: each enemy shot has its own look, speed, hang-time, and (for some) a seek
+        const ENEMY_SHOT = {
+            scout:      { color: 0xffe066, speed: 44, life: 1.00, style: 'spark', home: 0.00 },
+            soldier:    { color: 0xff3b3b, speed: 54, life: 1.20, style: 'bolt',  home: 0.30 },
+            heavy:      { color: 0xff8a3d, speed: 32, life: 1.70, style: 'slug',  home: 0.28 },
+            sniper:     { color: 0xd8b4fe, speed: 92, life: 1.90, style: 'lance', home: 0.18 },
+            healer:     { color: 0x4ade80, speed: 36, life: 1.10, style: 'orb',   home: 0.00 },
+            berserker:  { color: 0xfb7185, speed: 60, life: 0.95, style: 'bolt',  home: 0.00 },
+            bomber:     { color: 0xf43f5e, speed: 40, life: 0.80, style: 'spark', home: 0.00 },
+            phantom:    { color: 0xcbd5e1, speed: 48, life: 1.35, style: 'orb',   home: 0.40 },
+            gunner:     { color: 0xc084fc, speed: 66, life: 0.85, style: 'spark', home: 0.26 },
+            skirmisher: { color: 0x2dd4bf, speed: 56, life: 1.15, style: 'bolt',  home: 0.22 },
+            wasp:       { color: 0xfde047, speed: 74, life: 0.70, style: 'spark', home: 0.00 },
+            raider:     { color: 0xfb7185, speed: 68, life: 0.90, style: 'bolt',  home: 0.20 },
+            juggernaut: { color: 0x94a3b8, speed: 26, life: 2.50, style: 'slug',  home: 0.58 },
+            warlord:    { color: 0xf87171, speed: 38, life: 1.85, style: 'slug',  home: 0.46 },
+            colossus:   { color: 0xa78bfa, speed: 34, life: 2.05, style: 'orb',   home: 0.40 },
+            nova:       { color: 0x67e8f9, speed: 42, life: 1.55, style: 'spark', home: 0.30 },
+            titan:      { color: 0x93c5fd, speed: 30, life: 1.70, style: 'slug',  home: 0.36 },
+            tempest:    { color: 0x38bdf8, speed: 58, life: 1.45, style: 'lance', home: 0.50 },
+            fortress:   { color: 0xfbbf24, speed: 28, life: 2.30, style: 'orb',   home: 0.24 }
+        };
+        const _shotSeek = new THREE.Vector3();
+        const _shotLook = new THREE.Vector3();
+        function enemyShotProfile(source) {
+            return ENEMY_SHOT[source && source.type] || { color: 0xff4444, speed: 50, life: 1.2, style: 'bolt', home: 0 };
+        }
+        function enemyHomeRate(source) {
+            if (!source || source.isPlayer) return 0;
+            if (source.isBoss || source.type === 'juggernaut' || source.shotHome) {
+                const h = enemyShotProfile(source).home;
+                return h > 0 ? h : 0.34;
+            }
+            return 0;
+        }
 
         const CONFIG = {
             playerSpeed: 18,
@@ -3108,7 +3143,8 @@
         // ENHANCED PROJECTILES - Glowing Plasma Bolts
         // ============================================
         function spawnBullet(source, dir, damage) { // v6(C): one bullet along dir — shared by the player and boss attack patterns
-            const bulletColor = source.isPlayer ? 0x00ffff : (source.type === 'healer' ? 0x00ff00 : 0xff4444);
+            const shot = source.isPlayer ? null : enemyShotProfile(source);
+            const bulletColor = source.isPlayer ? 0x00ffff : shot.color;
 
             const bulletGroup = new THREE.Group();
             // FIX (Tier 2): bullet geometries/materials are cached & shared (no per-shot leak)
@@ -3128,15 +3164,33 @@
             source.barrel.getWorldPosition(muzzleWorld);
             bulletGroup.position.copy(muzzleWorld);
 
-            const d = dir.clone().normalize();
+            const d = dir.clone();
+            if (!source.isPlayer && player && !player.isDead) {
+                // v27.4: pitch toward the tank body so valley/ridge shots no longer fly over the player
+                const ty = (player.mesh.position.y + 1.15) - bulletGroup.position.y;
+                const horiz = Math.hypot(d.x, d.z) || 1;
+                d.y = ty / horiz;
+            }
+            d.normalize();
+            const speed = source.isPlayer ? CONFIG.bulletSpeed : shot.speed;
+            const life = source.isPlayer ? 1.2 : shot.life;
+            const home = source.isPlayer ? 0 : enemyHomeRate(source);
+            const style = source.isPlayer ? 'bolt' : shot.style;
+            if (style === 'slug') bulletGroup.scale.setScalar(1.55);
+            else if (style === 'orb') bulletGroup.scale.setScalar(1.45);
+            else if (style === 'spark') bulletGroup.scale.setScalar(0.62);
+            else if (style === 'lance') { bulletGroup.scale.set(0.62, 0.62, 1.85); trail.scale.set(0.55, 2.1, 0.55); }
             bulletGroup.lookAt(bulletGroup.position.clone().add(d));
             bulletGroup.userData = {
-                vel: d.multiplyScalar(CONFIG.bulletSpeed),
+                vel: d.multiplyScalar(speed),
+                speed: speed,
                 isPlayer: source.isPlayer,
                 damage: source.isPlayer ? damage : damage * (state.diffMult.dmg || 1) * (source.damageMult || 1), // v10: difficulty + v26: level scaling
                 pierce: source.isPlayer ? (state.playerStats.pierce || 0) : 0,
                 hitList: [],
-                life: 1.2,
+                life: life,
+                home: home,
+                style: style,
                 color: bulletColor
             };
             scene.add(bulletGroup);
@@ -4591,6 +4645,9 @@
                 });
                 if (enemy.updateHpBar) enemy.updateHpBar();
             }
+            // v27.4: juggernaut + sniper/phantom always seek; a few others roll it
+            if (type === 'juggernaut' || type === 'sniper' || type === 'phantom') enemy.shotHome = true;
+            else if (type !== 'wasp' && type !== 'bomber' && type !== 'healer' && Math.random() < 0.28) enemy.shotHome = true;
             enemy.mesh.position.set(x, 0, z);
             enemies.push(enemy);
             return enemy;
@@ -4882,8 +4939,18 @@
             // Bullets
             for (let i = bullets.length - 1; i >= 0; i--) {
                 const b = bullets[i];
-                b.group.position.add(_tv1.copy(b.group.userData.vel).multiplyScalar(dt)); // FIX (Tier 3): no per-frame allocation
-                b.group.userData.life -= dt;
+                const ud = b.group.userData;
+                if (!ud.isPlayer && ud.home && player && !player.isDead) {
+                    _shotSeek.set(
+                        player.mesh.position.x - b.group.position.x,
+                        (player.mesh.position.y + 1.15) - b.group.position.y,
+                        player.mesh.position.z - b.group.position.z
+                    ).normalize().multiplyScalar(ud.speed || CONFIG.bulletSpeed);
+                    ud.vel.lerp(_shotSeek, 1 - Math.pow(1 - ud.home, dt * 60));
+                    b.group.lookAt(_shotLook.copy(b.group.position).add(ud.vel));
+                }
+                b.group.position.add(_tv1.copy(ud.vel).multiplyScalar(dt)); // FIX (Tier 3): no per-frame allocation
+                ud.life -= dt;
 
                 // Pulse effect
                 const pulse = 1 + Math.sin(clock.getElapsedTime() * 25) * 0.18;
@@ -4984,8 +5051,8 @@
                         const dz = b.group.position.z - player.mesh.position.z;
                         const dy = Math.abs(b.group.position.y - player.mesh.position.y);
                         
-                        // Player hitbox slightly larger
-                        if (dx*dx + dz*dz < 2.5*2.5 && dy < 3.8) {
+                        // v27.4: taller hit so sloped ground no longer lets flat shots pass overhead
+                        if (dx*dx + dz*dz < 2.5*2.5 && dy < 8.5) {
                             showDamageDirection(b.group.position.x, b.group.position.z); // v2 UI
                             player.takeDamage(b.group.userData.damage);
                             createExplosion(b.group.position, 3, selectedSkinColor(), 'spark');
