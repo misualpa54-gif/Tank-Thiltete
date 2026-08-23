@@ -900,7 +900,7 @@
     <div id="start-screen" class="screen">
         <div class="home-logo">⚔️</div>
         <h1>TANK REALMS</h1>
-        <h2>Conquer Every Biome</h2>
+        <h2>Conquer Every Biome <span id="game-version" style="font-size:11px; letter-spacing:1px; opacity:0.55; vertical-align:middle;">v29</span></h2>
         <div class="home-stats">
             <div class="home-stat"><span class="home-num" id="home-best-casual">0</span><span class="home-label">Best · Casual</span></div>
             <div class="home-stat"><span class="home-num" id="home-best-levels">0</span><span class="home-label">Best · Levels</span></div>
@@ -4872,7 +4872,6 @@
 
                 // Terrain following for enemies that didn't move this frame (height/tilt upkeep)
                 if (!e._movedThisFrame) e.move(dt, _sv1.set(0, 0)); // FIX (Tier 3)
-                syncHpBar(e); // v27.3: keep the name/HP bar over the tank as it moves
 
                 // v29 (owner): tanks are SOLID — chargers (juggernaut/bomber/berserker) used to
                 // drive inside the player's hull and sit there overlapping. Push them out.
@@ -4900,6 +4899,7 @@
                     }
                 }
             }
+            enemies.forEach(e => syncHpBar(e)); // v29: bars sync AFTER movement + separation, so they sit exactly on the tank
 
             // v5: remove enemies that died outside the bullet path (kamikaze detonations)
             if (enemies.some(en => en.isDead)) enemies = enemies.filter(en => !en.isDead);
