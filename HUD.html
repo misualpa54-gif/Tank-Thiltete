@@ -804,6 +804,9 @@
             pointer-events: auto;
         }
 
+        #settings-screen {
+            z-index: 28;
+        }
         #pause-screen {
             gap: 14px;
         }
@@ -1275,7 +1278,7 @@
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">HUD 5</div>
+        <div class="version-tag" id="version-tag">HUD 6</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -2286,12 +2289,14 @@
 
         function openSettings() {
             if (state.gamePhase === 'playing') pauseGame();
+            setScreenVisibility('pause-screen', false);
             setScreenVisibility('settings-screen', true);
             syncHUDControls();
         }
 
         function closeSettings() {
             setScreenVisibility('settings-screen', false);
+            if (state.gamePhase === 'paused') setScreenVisibility('pause-screen', true);
             syncHUDControls();
         }
 
@@ -4075,6 +4080,7 @@
             state.lastSpawnTime = now;
             state.lastRegenTime = now;
             setScreenVisibility('pause-screen', false);
+            setScreenVisibility('settings-screen', false);
             setPauseUIVisible(true);
             syncHUDControls();
         }
@@ -4744,6 +4750,7 @@
             particles.forEach(p => { scene.remove(p.mesh); disposeObject3D(p.mesh); }); particles = [];
             document.querySelectorAll('.score-popup').forEach(p => p.remove());
             setScreenVisibility('pause-screen', false);
+            setScreenVisibility('settings-screen', false);
             setScreenVisibility('game-over-screen', false);
             setScreenVisibility('start-screen', true);
             setPauseUIVisible(false);
