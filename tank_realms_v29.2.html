@@ -963,7 +963,7 @@
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">v29.1</div>
+        <div class="version-tag" id="version-tag">v29.2</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -5620,12 +5620,14 @@
             ctx.lineWidth = 1.5;
             ctx.strokeRect(2, 2, W - 4, W - 4);
 
-            for (const e of enemies) { // enemies as red dots
+            const VAR_DOT = { scouter:1, soldierpro:1, heavier:1, picker:1, squsasher:1, deathbringer:1, phantasm:1, gunnier:1, tombraider:1, hammer:1 };
+            for (const e of enemies) { // enemies as dots — variants are teal
                 if (e.isDead) continue;
                 const [mx, mz] = toMap(e.mesh.position.x, e.mesh.position.z);
-                ctx.fillStyle = e.isBoss ? '#fb923c' : (e === state.targetEnemy ? '#fca5a5' : '#ef4444'); // v7: bosses as big orange dots
+                const isVar = !!VAR_DOT[e.type];
+                ctx.fillStyle = e.isBoss ? '#fb923c' : (isVar ? '#22d3ee' : (e === state.targetEnemy ? '#fca5a5' : '#ef4444'));
                 ctx.beginPath();
-                ctx.arc(mx, mz, e.isBoss ? 5 : (e === state.targetEnemy ? 3 : 2.1), 0, Math.PI * 2);
+                ctx.arc(mx, mz, e.isBoss ? 5 : (isVar ? 2.7 : (e === state.targetEnemy ? 3 : 2.1)), 0, Math.PI * 2);
                 ctx.fill();
             }
             if (supplyDrops && supplyDrops.length) {
