@@ -193,25 +193,67 @@
 
         /* v7: home screen */
         .home-logo { font-size: 64px; animation: homeFloat 3s ease-in-out infinite; text-shadow: 0 0 40px rgba(102,126,234,0.7); }
-                .home-logo.tank-mark, .pause-tank-mark {
-            width: 210px;
-            height: 150px;
+                #start-screen {
+            justify-content: flex-start;
+            overflow-x: hidden;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: max(12px, env(safe-area-inset-top)) 16px max(20px, env(safe-area-inset-bottom));
+        }
+        .home-wrap {
+            width: min(100%, 420px);
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            z-index: 3;
+        }
+        #start-screen h1 { font-size: clamp(1.7rem, 7vw, 2.6rem); letter-spacing: 4px; margin-top: 4px; }
+        #start-screen h2 { margin-bottom: 12px; font-size: 0.85rem; }
+        .home-actions {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+            position: relative;
+            z-index: 5;
+        }
+        .home-actions .btn {
+            margin-top: 0;
+            width: min(86vw, 300px);
+            min-width: 0;
+            flex: 0 0 auto;
+        }
+        .home-logo.tank-mark, .pause-tank-mark {
+            width: 168px;
+            height: 118px;
+            max-width: 50vw;
+            max-height: 16vh;
             display: flex;
             align-items: center;
             justify-content: center;
             position: relative;
-            z-index: 2;
+            z-index: 1;
+            overflow: hidden;
+            flex: 0 0 auto;
         }
-        .pause-tank-mark { width: 190px; height: 136px; margin-bottom: 2px; }
+        .pause-tank-mark { width: 150px; height: 106px; margin-bottom: 2px; max-height: 14vh; }
         #menu-tank-view {
             display: block;
-            width: 210px;
-            height: 150px;
+            width: 168px !important;
+            height: 118px !important;
+            max-width: 100%;
+            max-height: 100%;
             pointer-events: none;
-            filter: drop-shadow(0 10px 16px rgba(0,0,0,0.45));
+            position: relative !important;
+            z-index: 1;
+            filter: drop-shadow(0 8px 12px rgba(0,0,0,0.45));
         }
                 @keyframes homeFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
-        .home-stats { display: flex; gap: 34px; margin: 18px 0 8px; }
+        .home-stats { display: flex; gap: 10px; margin: 8px 0 4px; width: 100%; justify-content: center; }
         .home-stat { display: flex; flex-direction: column; align-items: center; }
         .home-num { color: #fff; font-size: 24px; font-weight: 800; }
         .home-label { color: rgba(255,255,255,0.55); font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 4px; }
@@ -896,7 +938,7 @@
 
 
         .game-info {
-            margin-top: 40px;
+            margin-top: 14px;
             color: rgba(255,255,255,0.4);
             font-size: 12px;
             text-align: center;
@@ -1302,23 +1344,27 @@
     </div>
 
     <div id="start-screen" class="screen">
-        <div class="home-logo tank-mark"><canvas id="menu-tank-view" width="420" height="300"></canvas></div>
-        <h1>TANK REALMS</h1>
-        <h2>Conquer Every Biome</h2>
-        <div class="home-stats">
-            <div class="home-stat"><span class="home-num" id="home-best-casual">0</span><span class="home-label">Best · Casual</span></div>
-            <div class="home-stat"><span class="home-num" id="home-best-levels">0</span><span class="home-label">Best · Levels</span></div>
-            <div class="home-stat"><span class="home-num" id="home-coins">0</span><span class="home-label">💰 Coins</span></div>
+        <div class="home-wrap">
+            <div class="home-logo tank-mark"><canvas id="menu-tank-view" width="420" height="300"></canvas></div>
+            <h1>TANK REALMS</h1>
+            <h2>Conquer Every Biome</h2>
+            <div class="home-stats">
+                <div class="home-stat"><span class="home-num" id="home-best-casual">0</span><span class="home-label">Best · Casual</span></div>
+                <div class="home-stat"><span class="home-num" id="home-best-levels">0</span><span class="home-label">Best · Levels</span></div>
+                <div class="home-stat"><span class="home-num" id="home-coins">0</span><span class="home-label">💰 Coins</span></div>
+            </div>
+            <div class="home-actions">
+                <button class="btn" id="btn-casual">▶ &nbsp;Casual</button>
+                <button class="btn mode-btn" id="btn-levels">🎯 &nbsp;Level Mode</button>
+                <button class="btn" id="btn-shop-home">🛒 &nbsp;Armory</button>
+                <button class="btn" id="btn-awards">🏆 &nbsp;Awards</button>
+            </div>
+            <div class="game-info">
+                Left side: Move • Right side: Auto-fire<br>
+                Casual: endless climb with saved progress • Levels: your rules
+            </div>
         </div>
-        <button class="btn" id="btn-casual">▶ &nbsp;Casual</button>
-        <button class="btn mode-btn" id="btn-levels">🎯 &nbsp;Level Mode</button>
-        <button class="btn" id="btn-shop-home">🛒 &nbsp;Armory</button>
-        <button class="btn" id="btn-awards">🏆 &nbsp;Awards</button>
-        <div class="game-info">
-            Left side: Move • Right side: Auto-fire<br>
-            Casual: endless climb with saved progress • Levels: your rules
-        </div>
-        <div class="version-tag" id="version-tag">HUD 10</div>
+        <div class="version-tag" id="version-tag">HUD 11</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -4508,7 +4554,11 @@
             if (!canvas) return;
             const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
             renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-            renderer.setSize(210, 150, false);
+            renderer.setSize(168, 118, false);
+            canvas.style.width = '168px';
+            canvas.style.height = '118px';
+            canvas.style.position = 'relative';
+            canvas.style.maxWidth = '100%';
             renderer.outputEncoding = THREE.sRGBEncoding;
             renderer.toneMapping = THREE.ACESFilmicToneMapping;
             renderer.toneMappingExposure = 1.12;
@@ -4516,7 +4566,7 @@
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             renderer.setClearColor(0x000000, 0);
             const sc = new THREE.Scene();
-            const cam = new THREE.PerspectiveCamera(32, 210 / 150, 0.1, 40);
+            const cam = new THREE.PerspectiveCamera(32, 168 / 118, 0.1, 40);
             cam.position.set(7.1, 4.6, 7.8);
             cam.lookAt(0, 1.05, 0.2);
             sc.add(new THREE.AmbientLight(0x8890a0, 0.55));
