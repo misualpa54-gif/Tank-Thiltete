@@ -965,6 +965,211 @@
             0% { width: 0%; }
             100% { width: 100%; }
         }
+
+        /* HUD 3 — same metal as the in-game bars, used on every menu */
+        .screen {
+            background:
+                radial-gradient(ellipse at 50% 0%, rgba(209,184,125,0.10), transparent 46%),
+                linear-gradient(180deg, #2c333a 0%, #171b1f 52%, #0b0d10 100%);
+        }
+        h1 {
+            color: #fff;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.75), 0 0 28px rgba(209,184,125,0.28);
+        }
+        h2 { color: #D1B87D; letter-spacing: 3px; }
+        .home-logo { filter: drop-shadow(0 4px 8px rgba(0,0,0,0.55)); }
+        .home-num { text-shadow: 0 2px 4px rgba(0,0,0,0.75); }
+        .home-label { color: #D1B87D; }
+        .home-stat {
+            min-width: 88px;
+            padding: 8px 10px;
+            border-radius: 12px;
+            background: linear-gradient(180deg, #4a5560 0%, #3A444C 40%, #1c2126 100%);
+            border: 1.5px solid rgba(192,198,210,0.35);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.18);
+        }
+        .settings-panel {
+            background: linear-gradient(180deg, #3A444C 0%, #242A30 55%, #161a1e 100%);
+            border: 1.5px solid rgba(192,198,210,0.28);
+            border-radius: 16px;
+            box-shadow: 0 8px 18px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.16);
+            backdrop-filter: none;
+        }
+        .settings-title {
+            color: #fff;
+            letter-spacing: 1px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.75);
+        }
+        .settings-subtitle { color: rgba(255,255,255,0.62); }
+        .cfg-label { color: #D1B87D; text-shadow: 0 1px 2px rgba(0,0,0,0.6); }
+
+        button {
+            font-family: 'Rajdhani', 'Roboto Condensed', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .metal-face {
+            background: linear-gradient(180deg, #5a6570 0%, #3A444C 42%, #1c2126 100%);
+            border: 1.5px solid rgba(192, 198, 210, 0.42);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -3px 5px rgba(0,0,0,0.38);
+        }
+        .btn,
+        .hud-icon-btn,
+        .cfg-chip,
+        .sr-load,
+        .sr-del,
+        .shop-item button,
+        .skin-row button,
+        .uc-reroll,
+        .bm-row,
+        .bm-leave {
+            background: linear-gradient(180deg, #5a6570 0%, #3A444C 42%, #1c2126 100%) !important;
+            border: 1.5px solid rgba(192, 198, 210, 0.45) !important;
+            border-radius: 12px !important;
+            color: #fff !important;
+            font-weight: 800 !important;
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.75);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -3px 5px rgba(0,0,0,0.38) !important;
+            transition: transform 0.12s ease, filter 0.12s ease, box-shadow 0.12s ease;
+        }
+        .btn {
+            padding: 14px 36px;
+            font-size: 15px;
+            margin-top: 12px;
+            min-width: min(78vw, 280px);
+        }
+        .btn.mode-btn,
+        #btn-shop-home,
+        #btn-awards,
+        #btn-shop,
+        #btn-continue-run,
+        #btn-go-home {
+            padding: 13px 32px;
+            font-size: 14px;
+            min-width: min(78vw, 280px);
+        }
+        #btn-casual, #btn-casual-new, #btn-levels-start, #btn-resume {
+            border-color: rgba(255, 215, 0, 0.55) !important;
+        }
+        #btn-awards, #btn-save-overwrite, #btn-continue-run {
+            border-color: rgba(255, 215, 0, 0.5) !important;
+        }
+        #btn-levels, .btn.mode-btn {
+            border-color: rgba(74, 222, 128, 0.4) !important;
+        }
+        #btn-shop-home, #btn-shop {
+            border-color: rgba(125, 211, 252, 0.4) !important;
+        }
+        .btn-restart, #btn-quit {
+            border-color: rgba(251, 146, 60, 0.55) !important;
+        }
+        #btn-go-home, #btn-save-run, #btn-pause-settings {
+            border-color: rgba(192, 198, 210, 0.45) !important;
+        }
+        .btn:hover, .hud-icon-btn:hover, .cfg-chip:hover, .sr-load:hover, .shop-item button:hover, .skin-row button:hover {
+            filter: brightness(1.08);
+            transform: translateY(-1px);
+        }
+        .btn:active, .hud-icon-btn:active, .cfg-chip:active, .sr-load:active, .shop-item button:active, .uc-card:active, .bm-row:active {
+            transform: translateY(1px) scale(0.99);
+            box-shadow: 0 2px 3px rgba(0,0,0,0.5), inset 0 3px 6px rgba(0,0,0,0.45) !important;
+            filter: brightness(0.96);
+        }
+        .hud-icon-btn {
+            width: auto;
+            min-height: 46px;
+            padding: 10px 16px;
+            font-size: 14px;
+            letter-spacing: 1px;
+        }
+        .hud-icon-btn.wide {
+            width: 100%;
+            min-width: 0;
+            height: auto;
+        }
+        .cfg-chip {
+            padding: 9px 14px;
+            font-size: 13px;
+            letter-spacing: 0.8px;
+            min-width: 0;
+        }
+        .cfg-chip.sel {
+            border-color: rgba(255, 215, 0, 0.65) !important;
+            background: linear-gradient(180deg, #6b7580 0%, #454f58 42%, #23282e 100%) !important;
+            color: #fff !important;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.28), 0 0 0 1px rgba(209,184,125,0.25) !important;
+        }
+        .shop-item button, .skin-row button, .sr-load {
+            min-width: 84px;
+            padding: 8px 12px;
+            font-size: 13px;
+            letter-spacing: 0.6px;
+            margin: 0;
+            text-transform: none;
+        }
+        .sr-del {
+            min-width: 42px;
+            padding: 8px 10px;
+            border-color: rgba(248, 113, 113, 0.55) !important;
+            color: #fecaca !important;
+            text-transform: none;
+        }
+        .shop-item button:disabled, .skin-row button:disabled, .btn:disabled {
+            filter: grayscale(0.25) brightness(0.7);
+            color: rgba(255,255,255,0.45) !important;
+            border-color: rgba(255,255,255,0.12) !important;
+        }
+        .shop-item, .skin-row, .save-row, .award-row {
+            background: linear-gradient(180deg, #3A444C 0%, #242A30 100%) !important;
+            border: 1px solid rgba(192,198,210,0.22) !important;
+            border-radius: 12px !important;
+            box-shadow: 0 3px 5px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1);
+        }
+        .pb-chip {
+            background: linear-gradient(180deg, #4a5560 0%, #2a3036 100%);
+            border: 1px solid rgba(192,198,210,0.28);
+            border-radius: 12px;
+            box-shadow: 0 3px 5px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.14);
+            text-shadow: 0 1px 2px rgba(0,0,0,0.7);
+        }
+        .uc-card {
+            background: linear-gradient(180deg, #4a5560 0%, #3A444C 40%, #1c2126 100%) !important;
+            border: 1.5px solid rgba(192,198,210,0.4) !important;
+            border-radius: 14px !important;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.2) !important;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.75);
+        }
+        .uc-card.picked { border-color: rgba(74,222,128,0.7) !important; }
+        .uc-reroll, .bm-leave {
+            min-width: 160px;
+            text-transform: uppercase;
+        }
+        .bm-row {
+            text-transform: none;
+            letter-spacing: 0.4px;
+            border-color: rgba(255, 215, 0, 0.4) !important;
+        }
+        #save-name-input, #cfg-level {
+            background: #1A1E24 !important;
+            border: 1px solid rgba(255,255,255,0.12) !important;
+            border-radius: 10px !important;
+            color: #fff !important;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.65);
+            font-family: 'Rajdhani', sans-serif;
+            font-weight: 700;
+        }
+        #cfg-level { accent-color: #D1B87D; height: 18px; }
+        .run-stat {
+            padding: 8px 10px;
+            border-radius: 12px;
+            background: linear-gradient(180deg, #4a5560 0%, #3A444C 40%, #1c2126 100%);
+            border: 1.5px solid rgba(192,198,210,0.3);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.16);
+        }
+        .run-label { color: #D1B87D; }
+        #pause-screen { gap: 10px; }
+        #pause-screen .btn { margin-top: 6px; }
     </style>
     <!-- PWA (FIX: installable + offline). Inert when opened as a plain file:// page. -->
     <link rel="manifest" href="manifest.webmanifest">
@@ -1076,12 +1281,12 @@
         <button class="btn" id="btn-casual">▶ &nbsp;Casual</button>
         <button class="btn mode-btn" id="btn-levels">🎯 &nbsp;Level Mode</button>
         <button class="btn" id="btn-shop-home">🛒 &nbsp;Armory</button>
-        <button class="btn" id="btn-awards" style="background: linear-gradient(135deg, #f59e0b 0%, #b45309 100%); box-shadow: 0 10px 40px rgba(245,158,11,0.4); padding: 13px 44px; font-size: 14px;">🏆 &nbsp;Awards</button>
+        <button class="btn" id="btn-awards">🏆 &nbsp;Awards</button>
         <div class="game-info">
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">HUD 2</div>
+        <div class="version-tag" id="version-tag">HUD 3</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -1101,8 +1306,8 @@
             <div class="settings-subtitle" id="save-dialog-info"></div>
             <input type="text" id="save-name-input" maxlength="24" placeholder="Save name…" style="width:100%; padding:12px 14px; border-radius:12px; border:1px solid rgba(255,255,255,0.2); background:rgba(255,255,255,0.07); color:#fff; font-size:15px; outline:none;">
             <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
-                <button class="btn" id="btn-save-overwrite" style="margin:0; flex:1; padding:12px 0; font-size:14px; display:none; background:linear-gradient(135deg,#f59e0b,#d97706);">Overwrite</button>
-                <button class="btn" id="btn-save-confirm" style="margin:0; flex:1; padding:12px 0; font-size:14px;">💾 Save</button>
+                <button class="btn" id="btn-save-overwrite" style="margin:0; flex:1; padding:12px 0; font-size:14px; display:none; min-width:0;">Overwrite</button>
+                <button class="btn" id="btn-save-confirm" style="margin:0; flex:1; padding:12px 0; font-size:14px; min-width:0;">💾 Save</button>
                 <button class="hud-icon-btn wide" id="btn-save-cancel" style="flex:1;">Cancel</button>
             </div>
         </div>
@@ -1155,9 +1360,9 @@
         <div id="new-best-badge" class="hidden">★ NEW BEST! ★</div>
         <div id="death-save-note" class="hidden" style="color:rgba(253,230,138,0.9);font-size:13px;margin:6px 18px 10px;text-align:center;"></div>
         <button class="btn btn-restart" id="btn-restart">Try Again</button>
-        <button class="btn" id="btn-continue-run" style="background: linear-gradient(135deg, #f59e0b 0%, #b45309 100%); box-shadow: 0 10px 40px rgba(245,158,11,0.45);">✨ Revive for 💰 <span id="continue-cost">300</span>?</button>
-        <button class="btn" id="btn-go-home" style="background: linear-gradient(135deg, #64748b 0%, #334155 100%); box-shadow: 0 10px 40px rgba(51,65,85,0.4);">⌂ Back to Home</button>
-        <button class="btn" id="btn-shop" style="background: linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%); box-shadow: 0 10px 40px rgba(14,165,233,0.4);">🛒 Armory &nbsp;·&nbsp; 💰 <span id="shop-coins-go">0</span></button>
+        <button class="btn" id="btn-continue-run">✨ Revive for 💰 <span id="continue-cost">300</span>?</button>
+        <button class="btn" id="btn-go-home">⌂ Back to Home</button>
+        <button class="btn" id="btn-shop">🛒 Armory &nbsp;·&nbsp; 💰 <span id="shop-coins-go">0</span></button>
     </div>
 
     <div id="shop-screen" class="screen hidden">
