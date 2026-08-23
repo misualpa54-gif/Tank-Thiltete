@@ -666,17 +666,22 @@
             top: calc(max(8px, env(safe-area-inset-top)) + 78px);
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(0,0,0,0.6);
-            padding: 8px 20px;
-            border-radius: 20px;
+            background: linear-gradient(180deg, rgba(58,68,76,0.82) 0%, rgba(28,33,38,0.82) 100%);
+            padding: 5px 14px;
+            border-radius: 12px;
             color: #fff;
-            font-size: 12px;
-            letter-spacing: 2px;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 1.6px;
             text-transform: uppercase;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.1);
+            text-shadow: 0 2px 4px rgba(0,0,0,0.75);
+            border: 1px solid rgba(209,184,125,0.35);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.14);
             opacity: 0;
-            transition: opacity 0.5s ease;
+            pointer-events: none;
+            z-index: 11;
+            transition: opacity 0.45s ease;
+            white-space: nowrap;
         }
 
         .biome-indicator.show {
@@ -1286,7 +1291,7 @@
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">HUD 3</div>
+        <div class="version-tag" id="version-tag">HUD 4</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -2390,12 +2395,7 @@
             biomeBlend = { from, to, t: 0, e: 0, start: performance.now() + 900, dur: 11000, tileI: 0, particlesSwapped: false, finalPass: false, frameFlip: 0, heavyFrame: false, queuedRebuild: false, waveOrder };
             state.currentBiome = idx;
             biomeBlend.rebuildQueue = []; // drained: tasks are tracked in chunkTasks now
-            // announce the realm
-            const biomeEl = document.getElementById('biome-name');
-            biomeEl.textContent = to.name;
-            biomeEl.classList.add('show');
-            clearTimeout(biomeEl._t);
-            biomeEl._t = setTimeout(() => biomeEl.classList.remove('show'), 1400);
+            // Name waits until the realm has finished loading (see markBiomeArrival).
             streamChunks(px, pz, false); // any missing chunks queue normally (target biome)
         }
         const _lerpColor = new THREE.Color(), _lerpColor2 = new THREE.Color();
@@ -2453,7 +2453,53 @@
                     const tl = tilesF[b.tileI++];
                     bakeGroundTile(tl.mesh, tl.worldX, tl.worldZ, BIOMES[state.currentBiome]);
                 }
-                if (b.tileI >= tilesF.length) biomeBlend = null;
+                if (b.tileI >= tilesF.length) {
+                    biomeBlend = null;
+                    markBiomeArrival(true);
+                }
+            }
+        }
+        function showBiomeBanner(name, ms) {
+            const el = document.getElementById('biome-name');
+            if (!el) return;
+            if (name) el.textContent = name;
+            el.classList.add('show');
+            clearTimeout(el._t);
+            el._t = setTimeout(() => el.classList.remove('show'), ms);
+        }
+        function markBiomeArrival(announce) {
+            state.biomeEnteredAt = state.runTime || 0;
+            state.biomeNameReminded = false;
+            state.biomeDwellLimit = 300 + Math.random() * 120;
+            if (announce && state.isPlaying) {
+                const biome = BIOMES[(state.currentBiome || 0) % BIOMES.length];
+                if (biome) showBiomeBanner(biome.name, 10000);
+            }
+        }
+        function pickTimedRandomBiome() {
+            if (biomeBlend || state.isChoosingUpgrade || state.marketOpen) return;
+            if (state.pendingBiome !== null && state.pendingBiome !== undefined) return;
+            const n = BIOMES.length;
+            if (n < 2) return;
+            let idx = Math.floor(Math.random() * n);
+            if (idx === state.currentBiome) idx = (idx + 1) % n;
+            if (idx === state.currentBiome) return;
+            state.pendingBiome = idx;
+            maybeTransitionBiome();
+        }
+        function tickBiomeNameAndWander() {
+            if (!state.isPlaying || state.isChoosingUpgrade || state.marketOpen) return;
+            const now = state.runTime || 0;
+            const stayed = now - (state.biomeEnteredAt || 0);
+            if (!state.biomeNameReminded && stayed >= 60) {
+                state.biomeNameReminded = true;
+                const biome = BIOMES[(state.currentBiome || 0) % BIOMES.length];
+                if (biome) showBiomeBanner(biome.name, 4000);
+            }
+            if (state.level >= 10 && now >= 300 && !biomeBlend) {
+                const aboutToLevelSwap = (state.biomeNextIn || 3) <= 1 || (state.pendingBiome !== null && state.pendingBiome !== undefined);
+                const dwell = state.biomeDwellLimit || 360;
+                if (!aboutToLevelSwap && stayed >= dwell) pickTimedRandomBiome();
             }
         }
         function maybeTransitionBiome() { // v20: run the pending realm morph once cards are done
@@ -2539,6 +2585,7 @@
 
             // Particles
             createEnvironmentParticles(biome);
+            if (state.isPlaying) markBiomeArrival(true);
         }
 
         // v2/v3 visuals: shared procedural ground detail texture + normal map
@@ -4631,6 +4678,9 @@
                 funUntil: state.funUntil || 0,
                 blastUntil: state.blastUntil || 0,
                 bossPending: !!state.bossPending,
+                biomeEnteredAt: state.biomeEnteredAt || 0,
+                biomeDwellLimit: state.biomeDwellLimit || 360,
+                biomeNameReminded: !!state.biomeNameReminded,
                 field: serializeField()
             };
         }
@@ -4814,6 +4864,9 @@
                 state.funKind = opts.resume.funKind || null;
                 state.funUntil = opts.resume.funUntil || 0;
                 state.blastUntil = opts.resume.blastUntil || 0;
+                state.biomeEnteredAt = opts.resume.biomeEnteredAt != null ? opts.resume.biomeEnteredAt : (state.runTime || 0);
+                state.biomeDwellLimit = opts.resume.biomeDwellLimit || (300 + Math.random() * 120);
+                state.biomeNameReminded = !!opts.resume.biomeNameReminded;
             } else {
                 state.biomeStep = Math.floor((state.level - 1) / 3);
                 state.biomeNextIn = 3;
@@ -4822,6 +4875,9 @@
                 state.blastUntil = 0;
                 state.invulnUntil = 0;
                 state.regenLockUntil = 0;
+                state.biomeEnteredAt = 0;
+                state.biomeNameReminded = false;
+                state.biomeDwellLimit = 300 + Math.random() * 120;
             }
             if ((state.invulnUntil || 0) > (state.runTime || 0) + 4) state.invulnUntil = 0;
             state.metaAtRunStart = Object.assign({}, meta);
@@ -4865,6 +4921,9 @@
                 loadBiome(opts.resume.biome);
                 try { restoreField(opts.resume.field); } catch (err) {}
                 if (opts.resume.bossPending && !state.bossActive) state.bossPending = true;
+                if (opts.resume.biomeEnteredAt != null) state.biomeEnteredAt = opts.resume.biomeEnteredAt;
+                if (opts.resume.biomeDwellLimit) state.biomeDwellLimit = opts.resume.biomeDwellLimit;
+                state.biomeNameReminded = !!opts.resume.biomeNameReminded;
             } else {
                 loadBiome(Math.floor((state.level - 1) / 3));
             }
@@ -6664,6 +6723,7 @@ updatePhysics = function(dt){
     if(state.isChoosingUpgrade || state.marketOpen) return;
     updateCombo(dt);
     oldUpdateLoop(dt);
+    try { tickBiomeNameAndWander(); } catch (e) {}
 };
 
 // difficulty scaling
