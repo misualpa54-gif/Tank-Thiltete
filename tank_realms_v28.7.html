@@ -947,7 +947,7 @@
             Left side: Move • Right side: Auto-fire<br>
             Casual: endless climb with saved progress • Levels: your rules
         </div>
-        <div class="version-tag" id="version-tag">v28.6</div>
+        <div class="version-tag" id="version-tag">v28.7</div>
     </div>
 
     <div id="casual-screen" class="screen hidden">
@@ -3785,6 +3785,13 @@
             if (level >= 16) types.push('juggernaut');
             if (level >= 17) types.push('hammer');
             if (level >= 18) types.push('raider');
+            // v28.7: keep Scout / Soldier / Heavy in the teens so the field is not only variants
+            const basics = ['scout', 'soldier'];
+            if (level >= 3) basics.push('heavy');
+            const basicOdds = level >= 15 ? 0.40 : (level >= 10 ? 0.32 : (level >= 6 ? 0.22 : 0));
+            if (basicOdds && Math.random() < basicOdds) {
+                return basics[Math.floor(Math.random() * basics.length)];
+            }
             return types[Math.floor(Math.random() * types.length)];
         }
 
