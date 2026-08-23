@@ -201,13 +201,13 @@
             padding: max(8px, env(safe-area-inset-top)) 16px max(12px, env(safe-area-inset-bottom));
         }
         .home-wrap {
-            width: min(100%, 360px);
+            width: min(100%, 340px);
             margin: 0 auto;
             display: flex;
             flex-direction: column;
             align-items: stretch;
             justify-content: center;
-            gap: 10px;
+            gap: 8px;
             position: relative;
             z-index: 3;
         }
@@ -231,9 +231,9 @@
         }
         .home-actions {
             width: 100%;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
             position: relative;
             z-index: 5;
         }
@@ -242,10 +242,10 @@
             margin-top: 0 !important;
             width: 100%;
             min-width: 0 !important;
-            height: 48px;
-            padding: 0 8px;
-            font-size: 13px;
-            letter-spacing: 1.1px;
+            height: 46px;
+            padding: 0 14px;
+            font-size: 14px;
+            letter-spacing: 1.6px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1379,15 +1379,15 @@
                 </div>
             </header>
             <div class="home-stats">
-                <div class="home-stat"><span class="home-num" id="home-best-casual">0</span><span class="home-label">Casual</span></div>
-                <div class="home-stat"><span class="home-num" id="home-best-levels">0</span><span class="home-label">Levels</span></div>
-                <div class="home-stat"><span class="home-num" id="home-coins">0</span><span class="home-label">Gold</span></div>
+                <div class="home-stat"><span class="home-num" id="home-best-casual">0</span><span class="home-label">Best · Casual</span></div>
+                <div class="home-stat"><span class="home-num" id="home-best-levels">0</span><span class="home-label">Best · Levels</span></div>
+                <div class="home-stat"><span class="home-num" id="home-coins">0</span><span class="home-label">Coins</span></div>
             </div>
             <div class="home-actions">
-                <button class="btn" id="btn-casual">Casual</button>
-                <button class="btn mode-btn" id="btn-levels">Levels</button>
-                <button class="btn" id="btn-shop-home">Armory</button>
-                <button class="btn" id="btn-awards">Awards</button>
+                <button class="btn" id="btn-casual">▶ &nbsp;Casual</button>
+                <button class="btn mode-btn" id="btn-levels">🎯 &nbsp;Level Mode</button>
+                <button class="btn" id="btn-shop-home">🛒 &nbsp;Armory</button>
+                <button class="btn" id="btn-awards">🏆 &nbsp;Awards</button>
             </div>
         </div>
     </div>
