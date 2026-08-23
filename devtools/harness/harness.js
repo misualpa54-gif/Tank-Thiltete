@@ -439,6 +439,92 @@ const homeOk = ev("(function(){ return { phase: state.gamePhase, homeVisible: !d
 check('v27.6: Home button on the death screen returns to the menu', homeOk.phase === 'menu' && homeOk.homeVisible === true, JSON.stringify(homeOk));
 check('v27.6: all v27.6 sections ran clean', cleanSoFar(), errDetail());
 
+// ---------------------------------------------------------------- 16. v28: Update-1 verification
+quietBoard();
+// B1: settings persist through save/load
+ev("(function(){ state.soundEnabled = false; state.cameraMode = 'wide'; state.controlAssist = false; saveGame(); state.soundEnabled = true; state.cameraMode = 'follow'; state.controlAssist = true; loadGame(); return { s: state.soundEnabled, c: state.cameraMode, a: state.controlAssist }; })()");
+const b1 = ev("({ s: state.soundEnabled, c: state.cameraMode, a: state.controlAssist })");
+check('v28 B1: sound/camera/assist persist through save+load', b1.s === false && b1.c === 'wide' && b1.a === false, JSON.stringify(b1));
+// B2: daily gone from the schema
+const b2 = (win.eval("store.get('tank_save')") || '').includes('daily');
+check('v28 B2: stale daily field removed from saves', b2 === false);
+// B3: shield recharge stored as remaining seconds, restored relative
+const b3 = ev("(function(){ state.shieldUp = false; state.shieldReadyAt = clock.getElapsedTime() + 8; var snap = snapshotRun(); startGame('casual', { resume: snap }); return { left: snap.shieldReadyIn, readyAt: state.shieldReadyAt - clock.getElapsedTime() }; })()");
+step(5); closeCards();
+check('v28 B3: shield recharge is reload-safe (stores ~8s remaining, restores ~8s)', b3.left > 7 && b3.left <= 8 && b3.readyAt > 6 && b3.readyAt <= 8, JSON.stringify(b3));
+// B5: save names render as text, never markup
+const b5 = ev("(function(){ state.casualSaves = [{ name: '<img src=x onerror=window.__pwned=1>', level: 2, score: 10, runTime: 5, runCoins: 0, savedAt: 0 }]; renderCasualSaves(); var el = document.querySelector('.sr-name'); return { pwned: window.__pwned === 1, shown: el ? el.textContent : '' }; })()");
+check('v28 B5: malicious save name renders as plain text (no script ran)', b5.pwned === false && b5.shown.indexOf('<img') >= 0, JSON.stringify({ pwned: b5.pwned, shown: b5.shown.slice(0, 30) }));
+// B6: resumes don't count as new runs
+const b6 = ev("(function(){ var r0 = lifeStats().runs; var snap = snapshotRun(); startGame('casual', { resume: snap }); var r1 = lifeStats().runs; startGame('casual'); var r2 = lifeStats().runs; return { r0: r0, r1: r1, r2: r2 }; })()");
+step(5); closeCards();
+check('v28 B6: resume does not inflate the runs counter (fresh run +1 only)', b6.r1 === b6.r0 && b6.r2 === b6.r1 + 1, JSON.stringify(b6));
+// C1: crits count when they LAND (non-lethal)
+quietBoard();
+ev("(function(){ lifeStats().crits = 0; state.playerStats.crit = 100; var t = makeScaledEnemy('scout', player.mesh.position.x, player.mesh.position.z); t.hp = t.maxHp = 500000; state.targetEnemy = t; state.lastFireTime = 0; state.input.isFiring = true; return 1; })()");
+step(40); // turret needs frames to swing onto the target before bullets connect
+ev('state.input.isFiring = false; state.playerStats.crit = 0; state.targetEnemy = null;');
+const c1 = ev("({ crits: lifeStats().crits, kills: state.kills })");
+check('v28 C1: non-lethal critical hits now count (crits>0, kills unchanged)', c1.crits >= 1 && c1.kills === 0, JSON.stringify(c1));
+// C2: wallet and lifetime stats agree on payouts
+quietBoard();
+const c2 = ev("(function(){ state.combo = 0; state.coins = 1000; lifeStats().coinsEarned = 0; state.runCoins = 0; var t = makeScaledEnemy('scout', player.mesh.position.x, player.mesh.position.z); t.hp = 1; state.targetEnemy = t; state.lastFireTime = 0; state.input.isFiring = true; return 1; })()");
+let c2wait = 0;
+while (ev("state.kills") === 0 && c2wait++ < 120) { step(2); ev("if (typeof player !== 'undefined' && player && !player.isDead) player.hp = player.maxHp;"); }
+ev('state.input.isFiring = false; state.targetEnemy = null;');
+const c2r = ev("(function(){ return { wallet: state.coins - 1000, ledger: lifeStats().coinsEarned, run: state.runCoins }; })()");
+check('v28 C2: wallet, run coins and lifetime ledger all agree', c2r.wallet === c2r.ledger && c2r.wallet === c2r.run && c2r.wallet > 0, JSON.stringify(c2r));
+// E2: card double-tap cannot double-pick
+ev("(function(){ state.pendingChoices = 0; state.isChoosingUpgrade = false; showUpgradeChoices(); var card = document.querySelector('#upgrade-choice .uc-card'); window.__ups = 0; var orig = applyUpgrade; applyUpgrade = function(){ window.__ups++; return orig.apply(this, arguments); }; card.click(); card.click(); return 'dbl'; })()");
+const e2 = ev("window.__ups");
+closeCards();
+check('v28 E2: double-tap applies exactly ONE card', e2 === 1, 'applied=' + e2);
+
+// ---------------------------------------------------------------- 17. v28 A1+A2: click-every-menu smoke walk
+const smokeErrs0 = errors.length + (win.__pageErrors || []).length;
+const walk = [];
+const clickBtn = (id) => { const b = win.document.getElementById(id); if (b) { b.dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true })); walk.push(id); } return !!b; };
+const vis = (id) => !win.document.getElementById(id).classList.contains('hidden');
+clickBtn('btn-awards');
+step(2);
+const awardsOk = vis('awards-screen') && /\d+\/\d+ achievements$/.test(win.document.getElementById('awards-sub').textContent);
+check('v28 A1: Awards opens clean (achievements-only subtitle)', awardsOk === true, win.document.getElementById('awards-sub').textContent);
+clickBtn('btn-awards-back');
+clickBtn('btn-shop'); step(2); const walkShop = vis('shop-screen'); clickBtn('btn-shop-close'); step(2);
+clickBtn('btn-casual'); step(2); const walkCasual = vis('casual-screen'); clickBtn('btn-casual-back'); step(2);
+clickBtn('btn-levels'); step(2); const walkLevels = vis('levels-screen'); clickBtn('btn-levels-back'); step(2);
+clickBtn('btn-sound'); clickBtn('btn-camera'); clickBtn('btn-assist'); step(2); // settings toggles exercise handlers
+check('v28 A2: menu walk opens Awards/Shop/Casual/Levels + toggles settings', walkShop && walkCasual && walkLevels === true, JSON.stringify({ walkShop, walkCasual, walkLevels, walked: walk.length }));
+// in-game walk: run -> pause -> save-dialog cancel -> resume -> die -> revive-decline -> home
+clickBtn('btn-casual'); clickBtn('btn-casual-new'); step(30); closeCards(); ev("if (player && !player.isDead) player.hp = player.maxHp;");
+clickBtn('btn-pause'); step(2); const pauseOk = vis('pause-screen');
+clickBtn('btn-save-run'); step(2); const saveDlg = !win.document.getElementById('save-dialog').classList.contains('hidden'); clickBtn('btn-save-cancel');
+clickBtn('btn-resume'); step(2); const resumed = ev("state.gamePhase") === 'playing';
+ev("(function(){ state.coins = 5000; state.shieldUp = false; state.invulnUntil = 0; player.maxHp = 300; player.hp = 1; player.takeDamage(999); return 1; })()");
+const reviveOpen = !win.document.getElementById('revive-offer').classList.contains('hidden');
+clickBtn('btn-revive-no'); step(5);
+clickBtn('btn-gameover-home'); step(5);
+const homeBack = ev("state.gamePhase") === 'menu' && vis('start-screen');
+check('v28 A2: in-game walk (pause, save dialog, resume, revive-decline, home)', pauseOk && saveDlg && resumed && reviveOpen && homeBack === true, JSON.stringify({ pauseOk, saveDlg, resumed, reviveOpen, homeBack }));
+check('v28 A2: full menu walk produced ZERO errors', errors.length + (win.__pageErrors || []).length === smokeErrs0, 'walked: ' + walk.slice(0, 8).join('>'));
+
+// ---------------------------------------------------------------- 18. v28 B4: save loads BEFORE first home render (fresh boot, seeded storage)
+const seeded = win.eval("store.get('tank_save')") || '';
+const seedLine = '<script>try { localStorage.setItem(\'tank_save\', ' + JSON.stringify(seeded) + '); } catch (e) {}</scr' + 'ipt>';
+const html2 = raw.slice(0, idx) + STUB + seedLine + raw.slice(idx);
+const vc2 = new VirtualConsole();
+const errs2 = [];
+vc2.on('error', (...a) => errs2.push(a.join(' ')));
+vc2.on('jsdomError', (e) => errs2.push((e.detail && e.detail.message) || e.message));
+const dom2 = new JSDOM(html2, { runScripts: 'dangerously', pretendToBeVisual: true, url: 'https://tankrealms.test/game.html', virtualConsole: vc2 });
+step(5); // let dom1 finish settling (independent)
+const dom2win = dom2.window;
+const dom2step = (n) => { for (let i = 0; i < n; i++) { dom2win.__vt += 1000 / 60; const q = dom2win.__rafQ.splice(0); for (const cb of q) { try { cb(dom2win.__vt); } catch (e) { errs2.push('rAF: ' + e.message); } } } };
+dom2step(120);
+const homeCoins2 = dom2win.document.getElementById('home-coins') ? dom2win.document.getElementById('home-coins').textContent : '(no el)';
+const seededCoins = dom2win.eval('(state.coins || 0).toLocaleString()');
+check('v28 B4: fresh boot shows SAVED coins on the home screen immediately', homeCoins2 === seededCoins && homeCoins2 !== '0', 'home shows ' + homeCoins2 + ' (state ' + seededCoins + '), errors=' + errs2.length);
+
 // ---------------------------------------------------------------- report
 console.log(NL + '================ RESULTS ================');
 for (const r of results) console.log((r.ok ? 'PASS' : 'FAIL') + '  ' + r.name + (r.detail ? '   [' + r.detail + ']' : ''));

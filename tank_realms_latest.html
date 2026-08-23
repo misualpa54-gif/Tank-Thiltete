@@ -3180,12 +3180,12 @@
                 const d = e.mesh.position.distanceTo(pos);
                 if (d < 6.5) {
                     const isCrit = Math.random() * 100 < (state.playerStats.crit || 0);
+                    if (isCrit) lifeStats().crits++; // v28 (fix): crits count at the hit event
                     e.takeDamage(dmg * (d < 3 ? 1 : 0.5) * (isCrit ? 2 : 1));
                     if (e.isDead) {
                         const points = e.pointValue || ENEMY_TYPES[e.type]?.points || 100; // v26
                         state.score += points; state.kills++;
-                        trackKill(!!e.isBoss, isCrit, Math.floor(points * 0.5));
-                        addKillReward(e);
+                        const __mp = addKillReward(e); trackKill(!!e.isBoss, isCrit, __mp); // v28: one payout number
                         addKillFeed(points, (ENEMY_TYPES[e.type]?.name || 'Tank') + ' 🚀', state.combo);
                         addXP(points / 2);
                         showScorePopup(e.mesh.position.x, e.mesh.position.z, points);
@@ -3834,7 +3834,6 @@
         function trackKill(isBoss, isCrit, payout) { // v23
             const st = lifeStats();
             st.kills++; st.coinsEarned += payout;
-            if (isCrit) st.crits++;
             if (state.combo > st.maxCombo) st.maxCombo = state.combo;
             if (isBoss) { st.bossKills++; if (state.diffMult && state.diffMult.dmg >= 1.6) st.bossNightmare++; }
             checkAchievements();
@@ -3856,7 +3855,7 @@
                 al.appendChild(row);
             }
             const achDone = unlocked.length;
-            document.getElementById('awards-sub').textContent = achDone + '/' + ACHIEVEMENTS.length + ' achievements · ' + (d.picks.length - d.done.length) + ' dailies left today';
+            document.getElementById('awards-sub').textContent = achDone + '/' + ACHIEVEMENTS.length + ' achievements'; // v28: dailies removed — was a ReferenceError crash
         }
 
         function updateHomeStats() { // v7+v13: home screen bests/coins
@@ -3873,6 +3872,7 @@
             const m = Math.floor((t || 0) / 60), s = Math.floor((t || 0) % 60);
             return m + ':' + String(s).padStart(2, '0');
         }
+        const escHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); // v28: user save names are text, never markup
         function renderCasualSaves() {
             const wrap = document.getElementById('casual-saves');
             if (!wrap) return;
@@ -3884,7 +3884,7 @@
                 const row = document.createElement('div');
                 row.className = 'save-row';
                 const when = snap.savedAt ? new Date(snap.savedAt).toLocaleDateString() : '';
-                row.innerHTML = '<div class="sr-body"><div class="sr-name">' + (isAuto ? '🔄 ' : '💾 ') + name + '</div>' +
+                row.innerHTML = '<div class="sr-body"><div class="sr-name">' + (isAuto ? '🔄 ' : '💾 ') + escHtml(name) + '</div>' +
                     '<div class="sr-meta">Lv ' + snap.level + ' · ' + (snap.score || 0).toLocaleString() + ' pts · ' + fmtTime(snap.runTime) + (when ? ' · ' + when : '') + '</div></div>';
                 const load = document.createElement('button');
                 load.className = 'sr-load'; load.textContent = 'Load';
@@ -4060,7 +4060,7 @@
                 coinBoost: state.runCoinBoost || 0,
                 overchargeLeft: Math.max(0, (state.overchargeUntil || 0) - state.runTime),
                 shieldUp: !!state.shieldUp,
-                shieldReadyAt: state.shieldReadyAt || 0
+                shieldReadyIn: Math.max(0, (state.shieldReadyAt || 0) - clock.getElapsedTime()) // v28: remaining seconds, reload-safe
             };
         }
 
@@ -4095,7 +4095,8 @@
         }
 
         function startGame(mode = 'casual', opts = {}) {
-            lifeStats().runs++; state.runDist = 0; // v23
+            if (!(mode === 'casual' && opts && opts.resume)) lifeStats().runs++; // v28: resumes don't count as new runs
+            state.runDist = 0; // v23
             lifeStats().skins = Math.max(lifeStats().skins || 1, skinState().owned.length);
             // FIX (Tier 2): dispose GPU resources of everything from the previous run
             // (bullets use shared cached resources, so removing them from the scene is enough)
@@ -4208,7 +4209,7 @@
                 state.runCoinBoost = opts.resume.coinBoost || 0;
                 state.overchargeUntil = (opts.resume.overchargeLeft || 0) > 0 ? state.runTime + opts.resume.overchargeLeft : 0;
                 state.shieldUp = !!opts.resume.shieldUp;
-                state.shieldReadyAt = opts.resume.shieldReadyAt || 0;
+                state.shieldReadyAt = (opts.resume.shieldReadyIn || 0) > 0 ? clock.getElapsedTime() + opts.resume.shieldReadyIn : 0; // v28: relative restore
                 if (state.shieldUp) player.shieldRing.visible = true;
             } else {
                 state.activeSaveName = null; // v27.6: fresh run — saving creates a new slot
@@ -4900,6 +4901,7 @@
                                     b.group.userData.hitList.push(enemy); // v5: pierce memory
                                     let dmg = b.group.userData.damage; // v4: crits
                                     const isCrit = Math.random() * 100 < (state.playerStats.crit || 0);
+                                    if (isCrit) lifeStats().crits++; // v28 (fix): every critical hit counts, not just killing blows
                                     if (isCrit) dmg *= 2;
                                     enemy.takeDamage(dmg);
                                     if (isCrit) SFX.crit(); else SFX.hit(); // v23
@@ -4919,8 +4921,7 @@
                                                     if (state.playerStats.adrenaline) { // v5 — v27.2 (fix): was missing on splash kills
                                                         state.speedBoostUntil = clock.getElapsedTime() + 1.5;
                                                     }
-                                                    trackKill(!!other.isBoss, false, Math.floor(pts2 * 0.5));
-                                                    addKillReward(other);
+                                                    const __sp = addKillReward(other); trackKill(!!other.isBoss, false, __sp); // v28: one payout number
                                                     addXP(pts2 / 2);
                                                     if (other.isBoss) onBossDefeated(other, pts2); // v27.2 (fix): boss slain by splash now counts
                                                     enemies.splice(j, 1);
@@ -4945,9 +4946,8 @@
                                         if (state.playerStats.adrenaline) { // v5: Adrenaline Rush
                                             state.speedBoostUntil = clock.getElapsedTime() + 1.5;
                                         }
-                                        const __payout = Math.floor((enemy.pointValue || (enemy.typeData ? enemy.typeData.points : 50)) * Math.min(2.2, 1 + state.combo * 0.2) * 0.5 * (1 + (state.runCoinBoost || 0))); // v26
+                                        const __payout = addKillReward(enemy); // v28 (fix): the wallet pays first and RETURNS the amount — stats now match the wallet exactly
                                         trackKill(!!enemy.isBoss, isCrit, __payout); // v23
-                                        addKillReward(enemy); // FIX (Coins): combo + coin reward — wired at the real kill site
                                         addKillFeed(points, (ENEMY_TYPES[enemy.type]?.name || 'Tank') + (isCrit ? ' ⚡CRIT' : ''), state.combo); // v2 UI + v4 crit
                                         addXP(points / 2);
                                         showScorePopup(enemy.mesh.position.x, enemy.mesh.position.z, points);
@@ -5727,6 +5727,7 @@
 
         document.getElementById('start-screen').classList.remove('hidden');
         lifeStats(); // v23
+        try { loadGame(); } catch (e2) {} // v28 (fix): load the save BEFORE the first home render — this line is what paints coins/bests
         updateHomeStats(); // v7
         if (!store.persistent) { // v14: be honest about sandboxed previews
             const warn = document.createElement('div');
@@ -5748,6 +5749,7 @@
                 '<button onclick="location.reload()" style="background:#ffd479;color:#0a0f19;border:none;border-radius:10px;padding:12px 28px;font-size:16px;font-weight:700;">Reload</button>';
             (document.body || document.documentElement).appendChild(d);
         }
+        // v28: loadGame() already ran above, before the home screen was rendered.
         try {
             init();
         } catch (e) {
@@ -5781,7 +5783,6 @@ state.combo = 0;
 state.comboTimer = 0;
 
 // coins
-state.coins = 0;
 
 // upgrade choice flag
 state.isChoosingUpgrade = false;
@@ -5818,6 +5819,7 @@ function addKillReward(enemy){
     const payout = Math.floor(reward * 0.5 * (1 + (state.runCoinBoost || 0))); // v10 rebalance + v11 Lucky Charm
     state.coins += payout;
     state.runCoins = (state.runCoins || 0) + payout;
+    return payout; // v28: single source of truth for wallet AND lifetime stats
 }
 
 // decay combo
@@ -5879,6 +5881,7 @@ function showUpgradeChoices(){
 }
 
 function pickUpgradeCard(card, up, overlay, cards){
+    if (overlay.__picked) return; overlay.__picked = true; // v28: a fast second tap can no longer double-pick from one screen
     SFX.cardPick(); // v23
     applyUpgrade(up);
     card.classList.add('picked');
@@ -5946,8 +5949,9 @@ function saveGame(){ // (uses the `store` defined at the top of the script)
             meta: state.meta || {},          // v4: permanent Armory upgrades
             skins: state.skins || { owned: ['amber'], selected: 'amber' }, // v10
             casual: { best: state.bestCasual || 0, auto: state.autoSave || null, saves: state.casualSaves || [] }, // v13
-            stats: state.stats || {}, achUnlocked: state.achUnlocked || [], daily: state.daily || null, // v23
+            stats: state.stats || {}, achUnlocked: state.achUnlocked || [], // v23 (v28: stale daily field removed)
             musicEnabled: state.musicEnabled !== false, // v24
+            soundEnabled: state.soundEnabled !== false, cameraMode: state.cameraMode || 'follow', controlAssist: state.controlAssist !== false, // v28: settings survive reload
             quality: state.quality || 'auto', tutorialTips: state.tutorialTips || {}, // v25
             levels: { best: state.bestLevels || 0 },
             progress: { maxCleared: state.maxCleared || 1 }, // v13: level-select unlock
@@ -5969,8 +5973,11 @@ function loadGame(){
         state.consumables = d.consumables || { lucky: 0, headstart: 0 }; // v11
         state.stats = d.stats || null; // v23
         state.achUnlocked = d.achUnlocked || [];
-        state.daily = d.daily || null;
+        // v28: legacy dailies data in old saves is simply ignored
         if (d.musicEnabled === false) state.musicEnabled = false; // v24
+        if (d.soundEnabled === false) state.soundEnabled = false; // v28
+        if (d.cameraMode === 'wide' || d.cameraMode === 'follow') state.cameraMode = d.cameraMode; // v28
+        if (d.controlAssist === false) state.controlAssist = false; // v28
         if (d.quality === 'low' || d.quality === 'high') {
             state.quality = d.quality;
             if (d.quality === 'low') { _autoDecided = true; applyQuality('low'); } // v26: actually apply the saved setting at boot (shadows/pixel-ratio were staying at High)
@@ -5987,7 +5994,7 @@ function loadGame(){
     } catch(e) { /* corrupt save ignored */ }
 }
 
-loadGame();
+// v28: loadGame() now runs BEFORE init() so the home screen renders saved values
 
 // HUD coins display — v27.1 (perf): the old 500ms polling interval was removed.
 // The chip now refreshes via refreshCoinsHUD() (defined next to updateHUD) from
