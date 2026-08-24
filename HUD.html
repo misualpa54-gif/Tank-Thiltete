@@ -190,6 +190,41 @@
             color: rgba(255,255,255,0.85);
         }
         .pb-chip b { color: #fff; }
+        .pb-card-row {
+            display: flex; flex-wrap: wrap; gap: 6px; justify-content: center;
+            max-width: 360px; margin: 8px auto 0;
+        }
+        .pb-card-pill {
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.14);
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 11px;
+            color: rgba(255,255,255,0.88);
+            letter-spacing: 0.3px;
+        }
+        .pb-card-pill.evo {
+            border-color: rgba(251,191,36,0.55);
+            background: linear-gradient(135deg, rgba(251,191,36,0.22), rgba(120,53,15,0.35));
+            color: #fde68a;
+            font-weight: 700;
+        }
+        .pb-empty { color: rgba(255,255,255,0.35); font-size: 12px; margin-top: 6px; }
+        .death-build {
+            margin: 8px 16px 4px;
+            text-align: center;
+        }
+        .death-build .pb-title { margin-bottom: 6px; }
+        .uc-card.evo-card {
+            border-color: rgba(251,191,36,0.55);
+            background: linear-gradient(160deg, rgba(251,191,36,0.28) 0%, rgba(40,20,8,0.92) 70%);
+            box-shadow: 0 0 18px rgba(251,191,36,0.25);
+        }
+        .uc-card.evo-card .uc-name { color: #fde68a; }
+        .uc-evo-tag {
+            font-size: 9px; letter-spacing: 2px; color: #fbbf24;
+            font-weight: 800; margin-bottom: 2px;
+        }
 
         /* v7: home screen */
         .home-logo { font-size: 64px; animation: homeFloat 3s ease-in-out infinite; text-shadow: 0 0 40px rgba(102,126,234,0.7); }
@@ -1687,6 +1722,10 @@
             <div class="run-stat"><span class="run-num" id="final-best">0</span><span class="run-label">Best score</span></div>
         </div>
         <div id="new-best-badge" class="hidden">★ NEW BEST! ★</div>
+        <div class="death-build">
+            <div class="pb-title">YOUR BUILD</div>
+            <div id="death-card-row" class="pb-card-row"></div>
+        </div>
         <div id="death-save-note" class="hidden" style="color:rgba(253,230,138,0.9);font-size:13px;margin:6px 18px 10px;text-align:center;"></div>
         <button class="btn btn-restart" id="btn-restart">Try Again</button>
         <button class="btn" id="btn-continue-run">✨ Revive for 💰 <span id="continue-cost">300</span>?</button>
@@ -1747,6 +1786,7 @@
                 <span class="pb-chip">🎯 <b id="stat-crit">0</b>%</span>
                 <span class="pb-chip">🔱 <b id="stat-multishot">0</b></span>
             </div>
+            <div id="pause-card-row" class="pb-card-row"></div>
             <div id="pause-revives" class="pb-revives">✨ Field Revives this run: <b id="pause-revive-count">0</b></div>
         </div>
         <button class="btn" id="btn-resume">Resume</button>
@@ -3820,7 +3860,7 @@
                     let speed = CONFIG.playerSpeed;
                     if (this.isPlayer) {
                         speed *= state.playerStats.speed / 100;
-                        if ((state.runTime || 0) < (state.speedBoostUntil || 0)) speed *= 1 + 0.25 * Math.max(1, state.playerStats.adrenaline || 0); // v5 + v27.3 haste
+                        if ((state.runTime || 0) < (state.speedBoostUntil || 0)) speed *= 1 + (0.25 + (state.playerStats._afterburn ? 0.1 : 0)) * Math.max(1, state.playerStats.adrenaline || 0); // v5 + v27.3 haste + afterburn
                     } else {
                         speed *= (this.typeData?.speed || 1) * 0.55 * (this.speedMult || 1); // v26: level scaling
                     }
@@ -3914,7 +3954,7 @@
                 if (this.isPlayer && (state.runTime || 0) < (state.invulnUntil || 0)) return;
                 if (this.isPlayer && state.shieldUp) { // v24: Shield Generator absorbs a hit
                     state.shieldUp = false;
-                    state.shieldReadyAt = (state.runTime || 0) + 18 / (state.playerStats.shield || 1);
+                    state.shieldReadyAt = (state.runTime || 0) + (18 / (state.playerStats.shield || 1)) * (state.playerStats._bastion ? 0.72 : 1);
                     SFX.heal();
                     showUpgradeNotification('🛡️ Shield absorbed the hit!');
                     if (player.shieldRing) player.shieldRing.visible = false;
@@ -4048,7 +4088,8 @@
         // ============================================
         // ENHANCED PROJECTILES - Glowing Plasma Bolts
         // ============================================
-        function spawnBullet(source, dir, damage) { // v6(C): one bullet along dir — shared by the player and boss attack patterns
+        function spawnBullet(source, dir, damage, opts) { // v6(C): one bullet along dir — shared by the player and boss attack patterns
+            // opts: optional { siege:bool } from player shoot (Phase 2 Siege Loader)
             const shot = source.isPlayer ? null : enemyShotProfile(source);
             const bulletColor = source.isPlayer ? 0x00ffff : shot.color;
 
@@ -4102,6 +4143,7 @@
                 isPlayer: source.isPlayer,
                 damage: source.isPlayer ? damage : damage * (state.diffMult.dmg || 1) * (source.damageMult || 1), // v10: difficulty + v26: level scaling
                 pierce: source.isPlayer ? (state.playerStats.pierce || 0) : 0,
+                siege: !!(source.isPlayer && opts && opts.siege),
                 hitList: [],
                 life: life,
                 home: home,
@@ -4152,13 +4194,14 @@
         }
         function missileBlast(pos) { // 2.5× splash damage in a 6.5-unit radius
             const dmg = CONFIG.baseDamage * (state.playerStats.damage / 100) * 2.5;
-            createExplosion(pos, 34, 0xff8844, 'armor');
+            const mRadius = 6.5 + (state.playerStats._cluster ? 2.2 : 0);
+            createExplosion(pos, 34 + (state.playerStats._cluster ? 12 : 0), 0xff8844, 'armor');
             SFX.explosion(34);
             for (let j = enemies.length - 1; j >= 0; j--) {
                 const e = enemies[j];
                 if (e.isDead) continue;
                 const d = e.mesh.position.distanceTo(pos);
-                if (d < 6.5) {
+                if (d < mRadius) {
                     const isCrit = Math.random() * 100 < (state.playerStats.crit || 0);
                     e.takeDamage(dmg * (d < 3 ? 1 : 0.5) * (isCrit ? 2 : 1));
                     if (!e.isDead) bumpComboFromHit(e);
@@ -4198,12 +4241,18 @@
             createMuzzleFlash(source);
 
             const shotCount = source.isPlayer ? 1 + Math.min(state.playerStats.multishot || 0, 4) : 1; // v4: stacks
-            const spreadAngle = 0.12;
-            const damage = source.isPlayer
+            const spreadAngle = source.isPlayer && state.playerStats._prism ? 0.08 : 0.12;
+            let damage = source.isPlayer
                 ? CONFIG.baseDamage * (state.playerStats.damage / 100)
                     * ((state.runTime || 0) < (state.overchargeUntil || 0) ? 1.3 : 1)
                     * ((state.runTime || 0) < (state.blastUntil || 0) ? 1.2 : 1)
                 : (ENEMY_TYPES[source.type]?.damage || 12);
+            // Phase 2 Siege Loader: every 4th player shell is a heavy slug
+            let siegeShot = false;
+            if (source.isPlayer && state.playerStats._siege) {
+                state._siegeShot = (state._siegeShot || 0) + 1;
+                if (state._siegeShot % 4 === 0) { siegeShot = true; damage *= 1.55; }
+            }
 
             for (let i = 0; i < shotCount; i++) {
                 const dir = new THREE.Vector3(0, 0, 1);
@@ -4212,7 +4261,7 @@
                     const angle = (i - (shotCount - 1) / 2) * spreadAngle; // v4: fan centered on aim
                     dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), angle);
                 }
-                spawnBullet(source, dir, damage);
+                spawnBullet(source, dir, damage, source.isPlayer ? { siege: siegeShot } : null);
             }
         }
 
@@ -4698,7 +4747,13 @@
                 player.hp = Math.min(player.maxHp, player.hp + state.playerStats.healOnKill);
                 try { createHealEffect(player.mesh.position); } catch (err) {}
             }
-            if (state.playerStats.adrenaline) state.speedBoostUntil = (state.runTime || 0) + 1.5;
+            if (state.playerStats.adrenaline) {
+                const ab = state.playerStats._afterburn ? 1 : 0;
+                state.speedBoostUntil = (state.runTime || 0) + 1.5 + ab * 0.75;
+            }
+            if (state.playerStats._nanite && player && !player.isDead) {
+                player.hp = Math.min(player.maxHp, player.hp + 2);
+            }
             try { trackKill(!!enemy.isBoss, !!isCrit, Math.floor(points * 0.5)); } catch (err) {}
             try { addKillReward(enemy); } catch (err) {}
             const tag = via === 'missile' ? ' 🚀' : (isCrit ? ' ⚡CRIT' : '');
@@ -5398,7 +5453,9 @@
                 biomeEnteredAt: state.biomeEnteredAt || 0,
                 biomeDwellLimit: state.biomeDwellLimit || 360,
                 biomeNameReminded: !!state.biomeNameReminded,
-                field: serializeField()
+                field: serializeField(),
+                runCards: (state.runCards || []).slice(),
+                runEvolutions: Object.assign({}, state.runEvolutions || {})
             };
         }
         function serializeField() {
@@ -5496,7 +5553,11 @@
             bullets.forEach(b => scene.remove(b.group));
             missiles.forEach(m => scene.remove(m.group)); // v26: in-flight missiles must not leak into the next run
             particles.forEach(p => { scene.remove(p.mesh); disposeObject3D(p.mesh); });
-            supplyDrops.forEach(d => { if (d.group) { scene.remove(d.group); disposeObject3D(d.group); } });
+            supplyDrops.forEach(d => {
+                if (d.group) { scene.remove(d.group); disposeObject3D(d.group); }
+                if (d.shadow) { try { scene.remove(d.shadow); disposeObject3D(d.shadow); } catch (e) {} }
+                if (d.pad) { try { scene.remove(d.pad); disposeObject3D(d.pad); } catch (e) {} }
+            });
             enemies = [];
             bullets = [];
             missiles = [];
@@ -5545,6 +5606,11 @@
             state.lastRegenTime = clock.getElapsedTime();
             state.enemiesIntroduced = new Set();
             state.playerStats = { speed: 100, damage: 100, fireRate: 100, armor: 0, regen: 0, maxHp: 100, multishot: 0, crit: 0, pierce: 0, coinBonus: 0, healOnKill: 0, xpBonus: 0, adrenaline: 0, missile: 0, splash: 0, shield: 0 };
+            if (!resume) { state.runCards = []; state.runEvolutions = {}; state._siegeShot = 0; }
+            else {
+                state.runCards = (opts.resume && opts.resume.runCards) ? opts.resume.runCards.slice() : (state.runCards || []);
+                state.runEvolutions = (opts.resume && opts.resume.runEvolutions) ? Object.assign({}, opts.resume.runEvolutions) : (state.runEvolutions || {});
+            }
             const meta = state.meta || {};
             if (resume && opts.resume.playerStats) {
                 // v26.6: saved run already includes Armory + every level-up card
@@ -5612,6 +5678,7 @@
 
             state.runRerolls = resume ? (state.runRerolls || 0) : (freeCards || 0);
             player = new Tank(selectedSkinColor(), true); // v10: equipped skin
+            try { syncTankUpgradeParts(player); } catch (e) {}
             const sRingGeo = new THREE.RingGeometry(3.1, 3.4, 40); // v24: shield ring
             const sRingMat = new THREE.MeshBasicMaterial({ color: 0x60a5fa, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
             player.shieldRing = new THREE.Mesh(sRingGeo, sRingMat);
@@ -5767,9 +5834,24 @@
             );
             beam.position.y = 9;
             g.add(beam);
+            // Phase 2: ground target shadow while falling
+            const shadow = new THREE.Mesh(
+                new THREE.RingGeometry(0.55, 1.35, 28),
+                new THREE.MeshBasicMaterial({ color: black ? 0xa78bfa : 0xfbbf24, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false })
+            );
+            shadow.rotation.x = -Math.PI / 2;
+            shadow.position.set(x, ground + 0.06, z);
+            scene.add(shadow);
+            const pad = new THREE.Mesh(
+                new THREE.CircleGeometry(0.5, 20),
+                new THREE.MeshBasicMaterial({ color: black ? 0x6d28d9 : 0xf59e0b, transparent: true, opacity: 0.22, depthWrite: false })
+            );
+            pad.rotation.x = -Math.PI / 2;
+            pad.position.set(x, ground + 0.04, z);
+            scene.add(pad);
             g.position.set(x, ground + 16, z);
             scene.add(g);
-            supplyDrops.push({ group: g, chute: chute, beam: beam, yLand: ground, falling: true, bob: Math.random() * 6, black: black });
+            supplyDrops.push({ group: g, chute: chute, beam: beam, crate: crate, shadow: shadow, pad: pad, yLand: ground, falling: true, bob: Math.random() * 6, black: black, landed: false, openT: 0 });
             showUpgradeNotification(black ? '☠️ Black Market inbound' : '📦 Supply drop inbound');
         }
         function closeBlackMarket() {
@@ -5827,6 +5909,17 @@
         }
         function collectSupplyDrop(drop) {
             if (!drop || !player) return;
+            // Phase 2: open burst (rewards unchanged)
+            try {
+                const c = drop.black ? 0xc084fc : 0xfbbf24;
+                const p = drop.group ? drop.group.position.clone() : player.mesh.position.clone();
+                fxRingAt(p.x, p.z, c, 0.8, 4.2, 0.4, true);
+                fxSparks(p.x, p.y + 0.6, p.z, c, 14);
+                createExplosion(p, 18, c, 'spark');
+                state.cameraShake = Math.max(state.cameraShake || 0, 0.22);
+            } catch (e) {}
+            if (drop.shadow) { try { scene.remove(drop.shadow); disposeObject3D(drop.shadow); } catch (e) {} drop.shadow = null; }
+            if (drop.pad) { try { scene.remove(drop.pad); disposeObject3D(drop.pad); } catch (e) {} drop.pad = null; }
             if (drop.black) {
                 try { scene.remove(drop.group); disposeObject3D(drop.group); } catch (e) {}
                 openBlackMarket();
@@ -5879,15 +5972,36 @@
                 if (!d.group) { supplyDrops.splice(i, 1); continue; }
                 if (d.falling) {
                     d.group.position.y -= 9 * dt;
+                    // pulse ground marker while falling
+                    if (d.shadow) {
+                        const pulse = 0.85 + 0.25 * Math.sin(clock.getElapsedTime() * 6);
+                        d.shadow.scale.setScalar(pulse);
+                        if (d.shadow.material) d.shadow.material.opacity = 0.35 + 0.25 * Math.sin(clock.getElapsedTime() * 5);
+                    }
                     if (d.group.position.y <= d.yLand + 0.05) {
                         d.group.position.y = d.yLand;
                         d.falling = false;
+                        d.landed = true;
                         if (d.chute) d.chute.visible = false;
+                        // Phase 2: landing impact
+                        try {
+                            const c = d.black ? 0xc084fc : 0xfbbf24;
+                            fxRingAt(d.group.position.x, d.group.position.z, c, 0.6, 3.5, 0.45, true);
+                            createExplosion(d.group.position.clone().setY(d.yLand + 0.4), 14, c, 'spark');
+                            state.cameraShake = Math.max(state.cameraShake || 0, 0.18);
+                            SFX.explosion(12);
+                        } catch (e) {}
+                        if (d.shadow) { try { scene.remove(d.shadow); disposeObject3D(d.shadow); } catch (e) {} d.shadow = null; }
+                        if (d.pad) { try { scene.remove(d.pad); disposeObject3D(d.pad); } catch (e) {} d.pad = null; }
                     }
                 } else {
                     d.bob += dt * 2;
                     d.group.position.y = d.yLand + Math.sin(d.bob) * 0.12;
                     d.group.rotation.y += dt * 0.7;
+                    // idle glow on crate
+                    if (d.crate && d.crate.material) {
+                        d.crate.material.emissiveIntensity = 0.55 + 0.35 * Math.sin(clock.getElapsedTime() * 3.5 + d.bob);
+                    }
                 }
                 if (d.beam && d.beam.material) d.beam.material.opacity = 0.18 + 0.14 * Math.sin(clock.getElapsedTime() * 3 + d.bob);
                 const dx = d.group.position.x - player.mesh.position.x;
@@ -6413,7 +6527,7 @@
                                     if (!enemy.isDead) bumpComboFromHit(enemy);
                                     if (isCrit) SFX.crit(); else SFX.hit(); // v23
                                     if ((state.playerStats.splash || 0) > 0) { // v24: Shell Shock
-                                        const radius = 3.5 + state.playerStats.splash * 1.2;
+                                        const radius = 3.5 + state.playerStats.splash * 1.2 + (state.playerStats._cluster ? 1.6 : 0);
                                         for (let j = enemies.length - 1; j >= 0; j--) {
                                             const other = enemies[j];
                                             if (other === enemy || other.isDead) continue;
@@ -6432,6 +6546,10 @@
                                     
                                     const enemyColor = ENEMY_TYPES[enemy.type]?.color || 0xff0000;
                                     // Pass enemy type for specific visual effects
+                                    if (b.group.userData.siege) {
+                                        state.cameraShake = Math.max(state.cameraShake || 0, 0.32);
+                                        try { fxRingAt(b.group.position.x, b.group.position.z, 0xf97316, 0.4, 2.2, 0.28, true); } catch (e2) {}
+                                    }
                                     if (isCrit) {
                                         createExplosion(b.group.position, 7, 0xffe566, 'spark');
                                         try { fxSparks(b.group.position.x, b.group.position.y, b.group.position.z, 0xfff7ae, 10); } catch (err) {}
@@ -6869,6 +6987,7 @@
             dom('stat-regen').textContent = state.playerStats.regen || 0;
             if (dom('stat-crit')) dom('stat-crit').textContent = state.playerStats.crit || 0; // v7
             if (dom('stat-multishot')) dom('stat-multishot').textContent = state.playerStats.multishot || 0;
+            try { refreshBuildPanels(); } catch (e) {}
             
             if (player) {
                 const hpPct = Math.max(0, Math.min(100, Math.round((player.hp / (player.maxHp || 1)) * 100)));
@@ -6972,6 +7091,7 @@
             document.getElementById('final-best').textContent = best;
             document.getElementById('new-best-badge').classList.toggle('hidden', !isBest);
             document.getElementById('game-over-screen').classList.remove('hidden');
+            try { refreshBuildPanels(); } catch (e) {}
             const cBtn = document.getElementById('btn-continue-run');
             const cCost = continueCost();
             if (cBtn) {
@@ -7006,6 +7126,7 @@
                 try { scene.remove(player.mesh); disposeObject3D(player.mesh); } catch (e) {}
             }
             player = new Tank(selectedSkinColor(), true);
+            try { syncTankUpgradeParts(player); } catch (e) {}
             const sRingGeo = new THREE.RingGeometry(3.1, 3.4, 40);
             const sRingMat = new THREE.MeshBasicMaterial({ color: 0x60a5fa, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
             player.shieldRing = new THREE.Mesh(sRingGeo, sRingMat);
@@ -7465,6 +7586,215 @@ const CHOICE_UPGRADES = [
  {stat:'shield',   amount:1,  icon:'🛡️', text:'Shield Generator',  desc:'Blocks one hit every 18s (stacks: faster recharge)'},
 ];
 
+// Phase 2: boss Evolutions — only offered when recipe cards are already in this run
+const EVOLUTIONS = [
+  { id:'cluster',  evo:true, icon:'🎆', text:'Cluster Warheads', desc:'Missiles + shells bloom into wider blasts',
+    need:{ splash:1, missile:1 },
+    apply:{ splash:1, missile:1, _cluster:1 } },
+  { id:'bastion',  evo:true, icon:'🏰', text:'Bastion Core', desc:'Thicker plates + faster shield recharge',
+    need:{ armor:8, shield:1 },
+    apply:{ armor:10, shield:1, _bastion:1 } },
+  { id:'prism',    evo:true, icon:'💎', text:'Prism Cannon', desc:'Shots fan cleaner and punch deeper',
+    need:{ pierce:1, multishot:1 },
+    apply:{ pierce:1, multishot:1, _prism:1 } },
+  { id:'nanite',   evo:true, icon:'🧬', text:'Nanite Harvest', desc:'Kills feed the hull — stronger repair',
+    need:{ regen:2, healOnKill:3 },
+    apply:{ regen:2, healOnKill:4, _nanite:1 } },
+  { id:'afterburn',evo:true, icon:'🚀', text:'Afterburner', desc:'Kill-boosts hit harder and last longer',
+    need:{ speed:110, adrenaline:1 },
+    apply:{ speed:8, adrenaline:1, _afterburn:1 } },
+  { id:'siege',    evo:true, icon:'⛏️', text:'Siege Loader', desc:'Every 4th shell is a heavy siege slug',
+    need:{ fireRate:112, damage:115 },
+    apply:{ fireRate:8, damage:10, _siege:1 } },
+];
+
+function runHasEvo(id){
+    return !!(state.runEvolutions && state.runEvolutions[id]);
+}
+function evoNeedMet(evo){
+    if (!evo || !evo.need) return false;
+    if (runHasEvo(evo.id)) return false;
+    const ps = state.playerStats || {};
+    for (const k of Object.keys(evo.need)) {
+        if ((ps[k] || 0) < evo.need[k]) return false;
+    }
+    return true;
+}
+function eligibleEvolutions(){
+    return EVOLUTIONS.filter(evoNeedMet);
+}
+function recordRunCard(up){
+    if (!state.runCards) state.runCards = [];
+    if (!up) return;
+    state.runCards.push({
+        icon: up.icon || '⭐',
+        text: up.text || up.stat || 'Upgrade',
+        evo: !!up.evo,
+        id: up.id || up.stat || ''
+    });
+    if (state.runCards.length > 24) state.runCards = state.runCards.slice(-24);
+}
+function renderBuildPills(rowId){
+    const row = document.getElementById(rowId);
+    if (!row) return;
+    const cards = state.runCards || [];
+    if (!cards.length) {
+        row.innerHTML = '<div class="pb-empty">No cards yet — level up to grow your tank</div>';
+        return;
+    }
+    row.innerHTML = cards.map(c =>
+        '<span class="pb-card-pill' + (c.evo ? ' evo' : '') + '">' +
+        (c.icon || '') + ' ' + (c.text || '') + '</span>'
+    ).join('');
+}
+function refreshBuildPanels(){
+    try { renderBuildPills('pause-card-row'); } catch (e) {}
+    try { renderBuildPills('death-card-row'); } catch (e) {}
+}
+
+// Phase 2: visible upgrade parts on the battle tank
+function clearTankUpgradeParts(tank){
+    if (!tank || !tank.mesh) return;
+    if (tank._upgradeParts) {
+        try {
+            tank.mesh.remove(tank._upgradeParts);
+            disposeObject3D(tank._upgradeParts);
+        } catch (e) {}
+        tank._upgradeParts = null;
+    }
+}
+function syncTankUpgradeParts(tank){
+    if (!tank || !tank.isPlayer || !tank.mesh) return;
+    clearTankUpgradeParts(tank);
+    const ps = state.playerStats || {};
+    const root = new THREE.Group();
+    root.name = 'upgradeParts';
+    tank._upgradeParts = root;
+    tank.mesh.add(root);
+    const add = (geo, mat, x, y, z, rx, ry, rz) => {
+        const m = new THREE.Mesh(geo, mat);
+        m.position.set(x, y, z);
+        if (rx) m.rotation.x = rx;
+        if (ry) m.rotation.y = ry;
+        if (rz) m.rotation.z = rz;
+        m.castShadow = true;
+        root.add(m);
+        return m;
+    };
+    const steel = new THREE.MeshStandardMaterial({ color: 0x6b7280, metalness: 0.75, roughness: 0.35 });
+    const dark = new THREE.MeshStandardMaterial({ color: 0x1f2937, metalness: 0.6, roughness: 0.45 });
+    const gold = new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.7, roughness: 0.3, emissive: 0x92400e, emissiveIntensity: 0.35 });
+    const cyan = new THREE.MeshStandardMaterial({ color: 0x22d3ee, metalness: 0.5, roughness: 0.3, emissive: 0x0891b2, emissiveIntensity: 0.45 });
+    const green = new THREE.MeshStandardMaterial({ color: 0x34d399, metalness: 0.4, roughness: 0.4, emissive: 0x065f46, emissiveIntensity: 0.4 });
+    const red = new THREE.MeshStandardMaterial({ color: 0xf87171, metalness: 0.45, roughness: 0.4, emissive: 0x7f1d1d, emissiveIntensity: 0.4 });
+    const blue = new THREE.MeshStandardMaterial({ color: 0x60a5fa, metalness: 0.55, roughness: 0.3, emissive: 0x1d4ed8, emissiveIntensity: 0.5 });
+    const purple = new THREE.MeshStandardMaterial({ color: 0xc084fc, metalness: 0.55, roughness: 0.3, emissive: 0x6b21a8, emissiveIntensity: 0.45 });
+    const orange = new THREE.MeshStandardMaterial({ color: 0xfb923c, metalness: 0.5, roughness: 0.35, emissive: 0x9a3412, emissiveIntensity: 0.4 });
+
+    if ((ps.armor || 0) > 0 || (ps.maxHp || 100) > 100) {
+        const thick = 0.08 + Math.min(0.14, (ps.armor || 0) * 0.006);
+        add(new THREE.BoxGeometry(2.85, thick, 3.5), steel, 0, 1.15, 0);
+        add(new THREE.BoxGeometry(0.22, 0.55, 3.2), steel, -1.45, 0.85, 0);
+        add(new THREE.BoxGeometry(0.22, 0.55, 3.2), steel, 1.45, 0.85, 0);
+    }
+    if ((ps.speed || 100) > 100) {
+        const n = 1 + Math.min(2, Math.floor(((ps.speed || 100) - 100) / 15));
+        for (let i = 0; i < n; i++) {
+            const x = (i - (n - 1) / 2) * 0.35;
+            add(new THREE.CylinderGeometry(0.1, 0.14, 0.7, 8), dark, x, 0.95, -2.05, Math.PI / 2, 0, 0);
+        }
+    }
+    if ((ps.fireRate || 100) > 100) {
+        add(new THREE.BoxGeometry(0.45, 0.35, 0.7), dark, -1.15, 1.35, -0.6);
+        add(new THREE.BoxGeometry(0.45, 0.35, 0.7), dark, 1.15, 1.35, -0.6);
+    }
+    if ((ps.damage || 100) > 100) {
+        add(new THREE.CylinderGeometry(0.28, 0.22, 0.45, 10), steel, 0, 1.95, 3.55, Math.PI / 2, 0, 0);
+    }
+    if ((ps.regen || 0) > 0) {
+        add(new THREE.CylinderGeometry(0.16, 0.16, 0.5, 8), green, -0.7, 1.55, -0.9);
+        add(new THREE.CylinderGeometry(0.16, 0.16, 0.5, 8), green, 0.7, 1.55, -0.9);
+    }
+    if ((ps.crit || 0) > 0) {
+        add(new THREE.BoxGeometry(0.18, 0.14, 0.55), dark, 0.45, 2.35, 0.55);
+        add(new THREE.CylinderGeometry(0.08, 0.08, 0.35, 8), cyan, 0.45, 2.35, 0.95, Math.PI / 2, 0, 0);
+    }
+    if ((ps.multishot || 0) > 0) {
+        const n = Math.min(3, ps.multishot | 0);
+        for (let i = 0; i < n; i++) {
+            const y = 1.7 + i * 0.12;
+            add(new THREE.CylinderGeometry(0.07, 0.09, 1.4, 8), steel, -1.1, y, 1.2, Math.PI / 2, 0, 0);
+            add(new THREE.CylinderGeometry(0.07, 0.09, 1.4, 8), steel, 1.1, y, 1.2, Math.PI / 2, 0, 0);
+        }
+    }
+    if ((ps.pierce || 0) > 0) {
+        add(new THREE.ConeGeometry(0.14, 0.55, 8), cyan, 0, 1.95, 4.0, Math.PI / 2, 0, 0);
+    }
+    if ((ps.missile || 0) > 0) {
+        const n = Math.min(3, ps.missile | 0);
+        for (let i = 0; i < n; i++) {
+            const z = -0.3 + i * 0.35;
+            add(new THREE.BoxGeometry(0.55, 0.28, 0.9), dark, -1.55, 1.25, z);
+            add(new THREE.BoxGeometry(0.55, 0.28, 0.9), dark, 1.55, 1.25, z);
+            add(new THREE.CylinderGeometry(0.08, 0.08, 0.7, 6), red, -1.55, 1.25, z + 0.2, Math.PI / 2, 0, 0);
+            add(new THREE.CylinderGeometry(0.08, 0.08, 0.7, 6), red, 1.55, 1.25, z + 0.2, Math.PI / 2, 0, 0);
+        }
+    }
+    if ((ps.splash || 0) > 0) {
+        add(new THREE.CylinderGeometry(0.22, 0.22, 0.4, 10), orange, 0, 1.55, -1.35);
+        add(new THREE.TorusGeometry(0.28, 0.04, 6, 12), orange, 0, 1.55, -1.35, Math.PI / 2, 0, 0);
+    }
+    if ((ps.shield || 0) > 0) {
+        add(new THREE.SphereGeometry(0.28, 12, 10), blue, 0, 2.55, -0.2);
+    }
+    if ((ps.coinBonus || 0) > 0) {
+        add(new THREE.TorusGeometry(0.2, 0.05, 6, 10), gold, -1.2, 0.7, 1.6, 0, 0, Math.PI / 2);
+        add(new THREE.TorusGeometry(0.2, 0.05, 6, 10), gold, 1.2, 0.7, 1.6, 0, 0, Math.PI / 2);
+    }
+    if ((ps.healOnKill || 0) > 0) {
+        add(new THREE.BoxGeometry(0.5, 0.12, 0.18), green, 0, 1.7, 1.5);
+        add(new THREE.BoxGeometry(0.18, 0.12, 0.5), green, 0, 1.7, 1.5);
+    }
+    if ((ps.adrenaline || 0) > 0) {
+        add(new THREE.BoxGeometry(0.12, 0.55, 0.9), red, -1.35, 1.4, -1.2, 0, 0, 0.35);
+        add(new THREE.BoxGeometry(0.12, 0.55, 0.9), red, 1.35, 1.4, -1.2, 0, 0, -0.35);
+    }
+    if ((ps.xpBonus || 0) > 0) {
+        add(new THREE.BoxGeometry(0.06, 0.9, 0.06), dark, 0.85, 2.4, -0.7);
+        add(new THREE.BoxGeometry(0.35, 0.22, 0.04), gold, 1.05, 2.7, -0.7);
+    }
+    if (ps._cluster) {
+        add(new THREE.SphereGeometry(0.16, 8, 8), orange, -0.5, 2.2, 0.8);
+        add(new THREE.SphereGeometry(0.16, 8, 8), orange, 0.5, 2.2, 0.8);
+        add(new THREE.SphereGeometry(0.12, 8, 8), orange, 0, 2.35, 1.1);
+    }
+    if (ps._bastion) {
+        add(new THREE.BoxGeometry(3.0, 0.2, 0.35), steel, 0, 1.35, 1.9);
+        add(new THREE.BoxGeometry(0.35, 0.5, 0.35), steel, -1.2, 1.55, 1.9);
+        add(new THREE.BoxGeometry(0.35, 0.5, 0.35), steel, 1.2, 1.55, 1.9);
+    }
+    if (ps._prism) {
+        add(new THREE.OctahedronGeometry(0.28, 0), purple, 0, 2.6, 0.3);
+    }
+    if (ps._nanite) {
+        add(new THREE.SphereGeometry(0.2, 10, 10), green, 0, 1.3, 0);
+        const glow = new THREE.Mesh(
+            new THREE.SphereGeometry(0.55, 10, 10),
+            new THREE.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.18, depthWrite: false })
+        );
+        glow.position.set(0, 1.3, 0);
+        root.add(glow);
+    }
+    if (ps._afterburn) {
+        add(new THREE.ConeGeometry(0.35, 0.8, 8), red, 0, 0.9, -2.35, Math.PI / 2, 0, 0);
+        add(new THREE.ConeGeometry(0.22, 0.55, 8), orange, 0, 0.9, -2.7, Math.PI / 2, 0, 0);
+    }
+    if (ps._siege) {
+        add(new THREE.CylinderGeometry(0.22, 0.18, 1.1, 10), dark, 0, 1.95, 3.1, Math.PI / 2, 0, 0);
+        add(new THREE.BoxGeometry(0.5, 0.35, 0.5), steel, 0, 2.15, 0.1);
+    }
+}
+
 // combo logic
 function addKillReward(enemy){
     state.combo++;
@@ -7499,24 +7829,35 @@ function showUpgradeChoices(kind){
     state.input.isFiring = false;
     try {
 
+    const isBossLoot = kind === 'boss' || state.nextChoiceIsBoss;
+    state.nextChoiceIsBoss = false;
     const pool = [...CHOICE_UPGRADES];
     const cardCount = 3; // v27.5: always 3 cards, pick one
     const picks = [];
+    // Phase 2: boss rewards can include Evolutions if recipe cards are owned
+    if (isBossLoot) {
+        const evos = eligibleEvolutions();
+        if (evos.length) {
+            picks.push(evos.splice(Math.floor(Math.random() * evos.length), 1)[0]);
+            if (evos.length && Math.random() < 0.35) {
+                picks.push(evos.splice(Math.floor(Math.random() * evos.length), 1)[0]);
+            }
+        }
+    }
     while (picks.length < cardCount && pool.length) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
 
-    const isBossLoot = kind === 'boss' || state.nextChoiceIsBoss;
-    state.nextChoiceIsBoss = false;
     const metaRR = isBossLoot ? 0 : ((state.meta || {}).cards || 0);
     const overlay = document.createElement('div');
     overlay.id = 'upgrade-choice';
     overlay.innerHTML = '<div class="uc-title">' + (isBossLoot ? '🏆 BOSS REWARD' : ('🌟 LEVEL ' + state.level)) + '</div>' +
-                        '<div class="uc-subtitle">' + (isBossLoot ? 'Choose one bonus' : 'Choose an upgrade') + '</div>' +
+                        '<div class="uc-subtitle">' + (isBossLoot ? 'Choose a bonus — Evolutions if ready' : 'Choose an upgrade') + '</div>' +
                         '<div class="uc-cards"></div>';
     const cards = overlay.querySelector('.uc-cards');
     picks.forEach(up => {
         const card = document.createElement('button');
-        card.className = 'uc-card';
-        card.innerHTML = '<div class="uc-icon">' + up.icon + '</div>' +
+        card.className = 'uc-card' + (up.evo ? ' evo-card' : '');
+        card.innerHTML = (up.evo ? '<div class="uc-evo-tag">EVOLUTION</div>' : '') +
+                          '<div class="uc-icon">' + up.icon + '</div>' +
                           '<div class="uc-name">' + up.text + '</div>' +
                           '<div class="uc-desc">' + up.desc + '</div>';
         const pick = (ev) => { if (ev) { ev.preventDefault(); ev.stopPropagation(); } pickUpgradeCard(card, up, overlay, cards); };
@@ -7572,15 +7913,36 @@ function pickUpgradeCard(card, up, overlay, cards){
 }
 
 function applyUpgrade(up){
-    if (up.stat === 'maxHp') {
+    if (!up) return;
+    // Phase 2 Evolutions apply a bundle of stats + flags
+    if (up.evo && up.apply) {
+        if (!state.runEvolutions) state.runEvolutions = {};
+        state.runEvolutions[up.id] = true;
+        const ap = up.apply;
+        for (const k of Object.keys(ap)) {
+            if (k === 'maxHp') {
+                state.playerStats.maxHp = (state.playerStats.maxHp || 100) + ap[k];
+                if (player) {
+                    player.maxHp = state.playerStats.maxHp;
+                    player.hp = Math.min(player.hp + ap[k], player.maxHp);
+                }
+            } else {
+                state.playerStats[k] = (state.playerStats[k] || 0) + ap[k];
+            }
+        }
+        try { showUpgradeNotification(up.icon + ' ' + up.text + ' online'); } catch (e) {}
+    } else if (up.stat === 'maxHp') {
         state.playerStats.maxHp += up.amount;
         if (player) {
             player.maxHp = state.playerStats.maxHp;
             player.hp = Math.min(player.hp + up.amount, player.maxHp);
         }
-    } else {
+    } else if (up.stat) {
         state.playerStats[up.stat] = (state.playerStats[up.stat] || 0) + up.amount;
     }
+    try { recordRunCard(up); } catch (e) {}
+    try { if (player) syncTankUpgradeParts(player); } catch (e) {}
+    try { refreshBuildPanels(); } catch (e) {}
     updateHUD();
 }
 
