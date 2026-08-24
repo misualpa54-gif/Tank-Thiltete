@@ -190,6 +190,32 @@
             color: rgba(255,255,255,0.85);
         }
         .pb-chip b { color: #fff; }
+        .kit-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            justify-content: center;
+            max-width: 360px;
+            max-height: 22vh;
+            overflow-y: auto;
+            margin: 6px auto 2px;
+            padding: 0 8px;
+        }
+        .pb-chip.pb-evo {
+            border-color: rgba(250, 204, 21, 0.55);
+            color: #fde68a;
+        }
+        .death-build { margin: 8px 12px 4px; }
+        .uc-card.uc-evo {
+            border-color: rgba(250, 204, 21, 0.7) !important;
+            box-shadow: 0 0 22px rgba(250, 204, 21, 0.22), 0 6px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.2) !important;
+        }
+        .uc-tag {
+            font-size: 9px;
+            letter-spacing: 2px;
+            font-weight: 800;
+            color: #fde68a;
+        }
 
         /* v7: home screen */
         .home-logo { font-size: 64px; animation: homeFloat 3s ease-in-out infinite; text-shadow: 0 0 40px rgba(102,126,234,0.7); }
@@ -1686,6 +1712,10 @@
             <div class="run-stat"><span class="run-num" id="final-coins">0</span><span class="run-label">Coins earned</span></div>
             <div class="run-stat"><span class="run-num" id="final-best">0</span><span class="run-label">Best score</span></div>
         </div>
+        <div class="pause-build death-build">
+            <div class="pb-title">YOUR BUILD</div>
+            <div id="death-kit" class="kit-list"></div>
+        </div>
         <div id="new-best-badge" class="hidden">★ NEW BEST! ★</div>
         <div id="death-save-note" class="hidden" style="color:rgba(253,230,138,0.9);font-size:13px;margin:6px 18px 10px;text-align:center;"></div>
         <button class="btn btn-restart" id="btn-restart">Try Again</button>
@@ -1742,11 +1772,14 @@
             <div class="pb-chips">
                 <span class="pb-chip">⚡ <b id="stat-speed">100</b>%</span>
                 <span class="pb-chip">💥 <b id="stat-damage">100</b>%</span>
+                <span class="pb-chip">🔥 <b id="stat-firerate">100</b>%</span>
                 <span class="pb-chip">🛡️ <b id="stat-armor">0</b></span>
                 <span class="pb-chip">🔄 <b id="stat-regen">0</b>/s</span>
                 <span class="pb-chip">🎯 <b id="stat-crit">0</b>%</span>
                 <span class="pb-chip">🔱 <b id="stat-multishot">0</b></span>
+                <span class="pb-chip">🔩 <b id="stat-pierce">0</b></span>
             </div>
+            <div id="pause-kit" class="kit-list"></div>
             <div id="pause-revives" class="pb-revives">✨ Field Revives this run: <b id="pause-revive-count">0</b></div>
         </div>
         <button class="btn" id="btn-resume">Resume</button>
@@ -3820,7 +3853,10 @@
                     let speed = CONFIG.playerSpeed;
                     if (this.isPlayer) {
                         speed *= state.playerStats.speed / 100;
-                        if ((state.runTime || 0) < (state.speedBoostUntil || 0)) speed *= 1 + 0.25 * Math.max(1, state.playerStats.adrenaline || 0); // v5 + v27.3 haste
+                        if ((state.runTime || 0) < (state.speedBoostUntil || 0)) {
+                            speed *= 1 + 0.25 * Math.max(1, state.playerStats.adrenaline || 0); // v5 + v27.3 haste
+                            if (state.playerStats.evo_afterburner) speed *= 1.12;
+                        }
                     } else {
                         speed *= (this.typeData?.speed || 1) * 0.55 * (this.speedMult || 1); // v26: level scaling
                     }
@@ -3917,6 +3953,10 @@
                     state.shieldReadyAt = (state.runTime || 0) + 18 / (state.playerStats.shield || 1);
                     SFX.heal();
                     showUpgradeNotification('🛡️ Shield absorbed the hit!');
+                    if (state.playerStats.evo_bastion) {
+                        state.bastionSoakUntil = (state.runTime || 0) + 2.8;
+                        state.shieldReadyAt = (state.runTime || 0) + (18 / (state.playerStats.shield || 1)) * 0.8;
+                    }
                     if (player.shieldRing) player.shieldRing.visible = false;
                     try {
                         const p = this.mesh.position;
@@ -3924,6 +3964,11 @@
                         fxSparks(p.x, p.y + 1.2, p.z, 0x93c5fd, 8);
                     } catch (err) {}
                     return;
+                }
+                if (this.isPlayer && (state.runTime || 0) < (state.bastionSoakUntil || 0)) {
+                    amount *= 0.75;
+                    state.bastionSoakUntil = 0;
+                    try { fxSparks(this.mesh.position.x, this.mesh.position.y + 1.2, this.mesh.position.z, 0x93c5fd, 6); } catch (e) {}
                 }
                 let incoming = amount;
                 let soaked = 0;
@@ -4048,7 +4093,7 @@
         // ============================================
         // ENHANCED PROJECTILES - Glowing Plasma Bolts
         // ============================================
-        function spawnBullet(source, dir, damage) { // v6(C): one bullet along dir — shared by the player and boss attack patterns
+        function spawnBullet(source, dir, damage, siegeShot) { // v6(C): one bullet along dir — shared by the player and boss attack patterns
             const shot = source.isPlayer ? null : enemyShotProfile(source);
             const bulletColor = source.isPlayer ? 0x00ffff : shot.color;
 
@@ -4088,6 +4133,7 @@
             if (source.isPlayer && (state.playerStats.pierce || 0) > 0 && trail.material) {
                 try { trail.material = trail.material.clone(); trail.material.color.setHex(0x22d3ee); } catch (err) {}
             }
+            if (source.isPlayer && siegeShot) bulletGroup.scale.setScalar(1.55);
             if (!source.isPlayer) {
                 if (style === 'slug') bulletGroup.scale.setScalar(1.85);
                 else if (style === 'orb') bulletGroup.scale.setScalar(1.75);
@@ -4150,6 +4196,25 @@
                 if (m.life <= 0) { createExplosion(m.group.position, 12, 0xff6644); scene.remove(m.group); missiles.splice(i, 1); }
             }
         }
+        function clusterBomblet(pos) {
+            if (!state.isPlaying || !pos) return;
+            const dmg = CONFIG.baseDamage * (state.playerStats.damage / 100) * 1.05;
+            try { createExplosion(pos, 16, 0xffaa66, 'spark'); } catch (e) {}
+            try { fxRingAt(pos.x, pos.z, 0xff9f43, 0.5, 2.6, 0.22, false); } catch (e) {}
+            for (let j = enemies.length - 1; j >= 0; j--) {
+                const e = enemies[j];
+                if (!e || e.isDead) continue;
+                if (e.mesh.position.distanceTo(pos) < 3.4) {
+                    const isCrit = Math.random() * 100 < (state.playerStats.crit || 0);
+                    e.takeDamage(dmg * (isCrit ? 2 : 1));
+                    if (!e.isDead) bumpComboFromHit(e);
+                    if (e.isDead) {
+                        handleEnemyKill(e, isCrit, 'missile');
+                        enemies.splice(j, 1);
+                    }
+                }
+            }
+        }
         function missileBlast(pos) { // 2.5× splash damage in a 6.5-unit radius
             const dmg = CONFIG.baseDamage * (state.playerStats.damage / 100) * 2.5;
             createExplosion(pos, 34, 0xff8844, 'armor');
@@ -4166,6 +4231,15 @@
                         handleEnemyKill(e, isCrit, 'missile');
                         enemies.splice(j, 1);
                     }
+                }
+            }
+            if (state.playerStats.evo_cluster) {
+                for (let k = 0; k < 3; k++) {
+                    const ang = (k / 3) * Math.PI * 2 + Math.random() * 0.35;
+                    const bp = pos.clone();
+                    bp.x += Math.cos(ang) * 2.3;
+                    bp.z += Math.sin(ang) * 2.3;
+                    setTimeout(function () { try { clusterBomblet(bp); } catch (e) {} }, 70 + k * 55);
                 }
             }
         }
@@ -4204,6 +4278,14 @@
                     * ((state.runTime || 0) < (state.overchargeUntil || 0) ? 1.3 : 1)
                     * ((state.runTime || 0) < (state.blastUntil || 0) ? 1.2 : 1)
                 : (ENEMY_TYPES[source.type]?.damage || 12);
+            let siegeShot = false;
+            if (source.isPlayer && state.playerStats.evo_siege) {
+                state.shotIndex = (state.shotIndex || 0) + 1;
+                if (state.shotIndex % 4 === 0) {
+                    siegeShot = true;
+                    try { state.cameraShake = Math.max(state.cameraShake || 0, 0.18); } catch (e) {}
+                }
+            }
 
             for (let i = 0; i < shotCount; i++) {
                 const dir = new THREE.Vector3(0, 0, 1);
@@ -4212,7 +4294,7 @@
                     const angle = (i - (shotCount - 1) / 2) * spreadAngle; // v4: fan centered on aim
                     dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), angle);
                 }
-                spawnBullet(source, dir, damage);
+                spawnBullet(source, dir, siegeShot ? damage * 1.7 : damage, siegeShot);
             }
         }
 
@@ -4532,6 +4614,7 @@
             if (!state.isPlaying || state.gamePhase !== 'playing') return;
             const rv = document.getElementById('pause-revive-count');
             if (rv) rv.textContent = state.continuesThisRun || 0;
+            try { renderBuildList(); } catch (e) {}
             SFX.engineStop(); SFX.musicStop(); // v23+v24
             state.gamePhase = 'paused';
             needsRender = true; // FIX (Tier 3): one final render for the pause backdrop
@@ -4698,7 +4781,15 @@
                 player.hp = Math.min(player.maxHp, player.hp + state.playerStats.healOnKill);
                 try { createHealEffect(player.mesh.position); } catch (err) {}
             }
-            if (state.playerStats.adrenaline) state.speedBoostUntil = (state.runTime || 0) + 1.5;
+            if (state.playerStats.evo_nanite && player && !player.isDead) {
+                player.hp = Math.min(player.maxHp, player.hp + 4);
+                try {
+                    createHealEffect(player.mesh.position);
+                    fxRingAt(player.mesh.position.x, player.mesh.position.z, 0x4ade80, 0.7, 2.8, 0.28, true);
+                } catch (err) {}
+            }
+            if (state.playerStats.adrenaline) state.speedBoostUntil = (state.runTime || 0) + (state.playerStats.evo_afterburner ? 3 : 1.5);
+            else if (state.playerStats.evo_afterburner) state.speedBoostUntil = (state.runTime || 0) + 3;
             try { trackKill(!!enemy.isBoss, !!isCrit, Math.floor(points * 0.5)); } catch (err) {}
             try { addKillReward(enemy); } catch (err) {}
             const tag = via === 'missile' ? ' 🚀' : (isCrit ? ' ⚡CRIT' : '');
@@ -5394,6 +5485,10 @@
                 funKind: state.funKind || null,
                 funUntil: state.funUntil || 0,
                 blastUntil: state.blastUntil || 0,
+                runCards: state.runCards || [],
+                runCardStats: state.runCardStats || [],
+                evolutions: state.evolutions || [],
+                shotIndex: state.shotIndex || 0,
                 bossPending: !!state.bossPending,
                 biomeEnteredAt: state.biomeEnteredAt || 0,
                 biomeDwellLimit: state.biomeDwellLimit || 360,
@@ -5496,7 +5591,10 @@
             bullets.forEach(b => scene.remove(b.group));
             missiles.forEach(m => scene.remove(m.group)); // v26: in-flight missiles must not leak into the next run
             particles.forEach(p => { scene.remove(p.mesh); disposeObject3D(p.mesh); });
-            supplyDrops.forEach(d => { if (d.group) { scene.remove(d.group); disposeObject3D(d.group); } });
+            supplyDrops.forEach(d => {
+                if (d.shadow) { try { scene.remove(d.shadow); disposeObject3D(d.shadow); } catch (e) {} }
+                if (d.group) { scene.remove(d.group); disposeObject3D(d.group); }
+            });
             enemies = [];
             bullets = [];
             missiles = [];
@@ -5582,6 +5680,10 @@
                 state.funKind = opts.resume.funKind || null;
                 state.funUntil = opts.resume.funUntil || 0;
                 state.blastUntil = opts.resume.blastUntil || 0;
+                state.runCards = opts.resume.runCards || [];
+                state.runCardStats = opts.resume.runCardStats || [];
+                state.evolutions = opts.resume.evolutions || [];
+                state.shotIndex = opts.resume.shotIndex || 0;
                 state.biomeEnteredAt = opts.resume.biomeEnteredAt != null ? opts.resume.biomeEnteredAt : (state.runTime || 0);
                 state.biomeDwellLimit = opts.resume.biomeDwellLimit || (300 + Math.random() * 120);
                 state.biomeNameReminded = !!opts.resume.biomeNameReminded;
@@ -5591,6 +5693,11 @@
                 state.overchargeUntil = useOvercharge ? state.runTime + 60 : 0;
                 state.funKind = null; state.funUntil = 0; state.nextFunAt = undefined;
                 state.blastUntil = 0;
+                state.runCards = [];
+                state.runCardStats = [];
+                state.evolutions = [];
+                state.shotIndex = 0;
+                state.bastionSoakUntil = 0;
                 state.invulnUntil = 0;
                 state.regenLockUntil = 0;
                 state.biomeEnteredAt = 0;
@@ -5629,6 +5736,7 @@
                 if (opts.resume.shieldReadyAt) state.shieldReadyAt = opts.resume.shieldReadyAt;
             }
             if (state.shieldUp) player.shieldRing.visible = true;
+            try { syncPlayerTankParts(); } catch (e) {}
             player.maxHp = state.playerStats.maxHp;
             player.hp = player.maxHp;
             if (resume) {
@@ -5767,9 +5875,25 @@
             );
             beam.position.y = 9;
             g.add(beam);
+            const lid = new THREE.Mesh(
+                new THREE.BoxGeometry(1.34, 0.16, 1.34),
+                new THREE.MeshStandardMaterial({
+                    color: black ? 0x6d28d9 : 0xf59e0b, metalness: 0.4, roughness: 0.38,
+                    emissive: black ? 0x4c1d95 : 0xaa7700, emissiveIntensity: 0.35
+                })
+            );
+            lid.position.y = 1.18;
+            g.add(lid);
+            const shadow = new THREE.Mesh(
+                new THREE.CircleGeometry(1.55, 22),
+                new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.38, depthWrite: false })
+            );
+            shadow.rotation.x = -Math.PI / 2;
+            shadow.position.set(x, ground + 0.06, z);
+            scene.add(shadow);
             g.position.set(x, ground + 16, z);
             scene.add(g);
-            supplyDrops.push({ group: g, chute: chute, beam: beam, yLand: ground, falling: true, bob: Math.random() * 6, black: black });
+            supplyDrops.push({ group: g, chute: chute, beam: beam, lid: lid, shadow: shadow, yLand: ground, falling: true, bob: Math.random() * 6, black: black });
             showUpgradeNotification(black ? '☠️ Black Market inbound' : '📦 Supply drop inbound');
         }
         function closeBlackMarket() {
@@ -5825,10 +5949,31 @@
             box.appendChild(leave);
             document.body.appendChild(box);
         }
+        function detachCrateShadow(drop) {
+            if (drop && drop.shadow) {
+                try { scene.remove(drop.shadow); disposeObject3D(drop.shadow); } catch (e) {}
+                drop.shadow = null;
+            }
+        }
+        function crateOpenFX(drop) {
+            if (!drop || !drop.group) return;
+            try {
+                const col = drop.black ? 0xc084fc : 0xfbbf24;
+                const p = drop.group.position;
+                fxRingAt(p.x, p.z, col, 0.7, 4.6, 0.3, false);
+                fxSparks(p.x, p.y + 0.8, p.z, col, 9);
+                if (drop.lid) {
+                    drop.lid.position.y += 0.35;
+                    drop.lid.rotation.z = 0.7;
+                }
+            } catch (e) {}
+        }
         function collectSupplyDrop(drop) {
             if (!drop || !player) return;
+            try { crateOpenFX(drop); } catch (e) {}
             if (drop.black) {
                 try { scene.remove(drop.group); disposeObject3D(drop.group); } catch (e) {}
+                detachCrateShadow(drop);
                 openBlackMarket();
                 return;
             }
@@ -5864,6 +6009,7 @@
             try { SFX.coin(); } catch (e) {}
             try { updateHUD(); } catch (e) {}
             scene.remove(drop.group); disposeObject3D(drop.group);
+            detachCrateShadow(drop);
         }
         function updateSupplyDrops(dt) {
             if (!player) return;
@@ -5877,12 +6023,25 @@
             for (let i = supplyDrops.length - 1; i >= 0; i--) {
                 const d = supplyDrops[i];
                 if (!d.group) { supplyDrops.splice(i, 1); continue; }
+                if (d.shadow) {
+                    const h = Math.max(0, d.group.position.y - d.yLand);
+                    const s = 0.55 + Math.min(1.55, h / 12);
+                    d.shadow.scale.set(s, s, 1);
+                    if (d.shadow.material) d.shadow.material.opacity = 0.16 + (1 - Math.min(1, h / 16)) * 0.28;
+                }
                 if (d.falling) {
                     d.group.position.y -= 9 * dt;
                     if (d.group.position.y <= d.yLand + 0.05) {
                         d.group.position.y = d.yLand;
                         d.falling = false;
                         if (d.chute) d.chute.visible = false;
+                        if (d.shadow) { d.shadow.scale.set(1, 1, 1); if (d.shadow.material) d.shadow.material.opacity = 0.22; }
+                        try {
+                            const col = d.black ? 0xc084fc : 0xfbbf24;
+                            fxRingAt(d.group.position.x, d.group.position.z, col, 0.6, 4.2, 0.34, false);
+                            state.cameraShake = Math.max(state.cameraShake || 0, 0.14);
+                            SFX.shatterRock();
+                        } catch (e) {}
                     }
                 } else {
                     d.bob += dt * 2;
@@ -6409,6 +6568,10 @@
                                     let dmg = b.group.userData.damage; // v4: crits
                                     const isCrit = Math.random() * 100 < (state.playerStats.crit || 0);
                                     if (isCrit) dmg *= 2;
+                                    if (isCrit && state.playerStats.evo_prism) {
+                                        b.group.userData.pierce = (b.group.userData.pierce || 0) + 1;
+                                        try { fxSparks(b.group.position.x, b.group.position.y, b.group.position.z, 0xa5f3fc, 8); } catch (err) {}
+                                    }
                                     enemy.takeDamage(dmg);
                                     if (!enemy.isDead) bumpComboFromHit(enemy);
                                     if (isCrit) SFX.crit(); else SFX.hit(); // v23
@@ -6869,6 +7032,8 @@
             dom('stat-regen').textContent = state.playerStats.regen || 0;
             if (dom('stat-crit')) dom('stat-crit').textContent = state.playerStats.crit || 0; // v7
             if (dom('stat-multishot')) dom('stat-multishot').textContent = state.playerStats.multishot || 0;
+            if (dom('stat-firerate')) dom('stat-firerate').textContent = state.playerStats.fireRate || 100;
+            if (dom('stat-pierce')) dom('stat-pierce').textContent = state.playerStats.pierce || 0;
             
             if (player) {
                 const hpPct = Math.max(0, Math.min(100, Math.round((player.hp / (player.maxHp || 1)) * 100)));
@@ -6971,6 +7136,7 @@
             best = state.score > best ? state.score : best;
             document.getElementById('final-best').textContent = best;
             document.getElementById('new-best-badge').classList.toggle('hidden', !isBest);
+            try { renderBuildList(); } catch (e) {}
             document.getElementById('game-over-screen').classList.remove('hidden');
             const cBtn = document.getElementById('btn-continue-run');
             const cCost = continueCost();
@@ -7015,6 +7181,7 @@
             player.mesh.add(player.shieldRing);
             player.maxHp = state.playerStats.maxHp;
             player.hp = Math.ceil(player.maxHp * 0.5);
+            try { syncPlayerTankParts(); } catch (e) {}
             player.mesh.position.set(x, 0, z);
             state.invulnUntil = (state.runTime || 0) + 3;
             state.shieldUp = false;
@@ -7465,6 +7632,149 @@ const CHOICE_UPGRADES = [
  {stat:'shield',   amount:1,  icon:'🛡️', text:'Shield Generator',  desc:'Blocks one hit every 18s (stacks: faster recharge)'},
 ];
 
+// HUD 23: boss-only Evolutions — appear in the 3-card pick when both recipe cards are owned this run
+const EVOLUTIONS = [
+ {evo:true, id:'cluster',     icon:'✴️', text:'Cluster Warheads', desc:'Missiles burst into 3 bomblets',           need:['missile','splash']},
+ {evo:true, id:'bastion',     icon:'🏯', text:'Bastion Core',     desc:'Broken shield still soaks the next hit 25%', need:['armor','shield']},
+ {evo:true, id:'prism',       icon:'🔷', text:'Prism Cannon',     desc:'Crits punch through +1 extra tank',         need:['pierce','crit']},
+ {evo:true, id:'nanite',      icon:'🧬', text:'Nanite Harvest',   desc:'Kills heal +4 more HP',                     need:['regen','healOnKill']},
+ {evo:true, id:'afterburner', icon:'🚀', text:'Afterburner',      desc:'Kill haste lasts 3s and runs hotter',       need:['speed','adrenaline']},
+ {evo:true, id:'siege',       icon:'💣', text:'Siege Loader',     desc:'Every 4th volley is a heavy slug (+70%)',   need:['damage','fireRate']},
+];
+function eligibleEvolutions(){
+    const have = state.runCardStats || [];
+    const owned = state.evolutions || [];
+    return EVOLUTIONS.filter(function(ev){
+        if (owned.indexOf(ev.id) >= 0) return false;
+        return ev.need.every(function(s){ return have.indexOf(s) >= 0; });
+    });
+}
+function noteRunCard(up){
+    if (!up) return;
+    state.runCards = state.runCards || [];
+    state.runCardStats = state.runCardStats || [];
+    state.evolutions = state.evolutions || [];
+    state.runCards.push({ stat: up.stat || up.id, icon: up.icon, text: up.text, evo: !!up.evo });
+    if (up.evo) {
+        if (ownedMissing(state.evolutions, up.id)) state.evolutions.push(up.id);
+    } else if (up.stat) {
+        state.runCardStats.push(up.stat);
+    }
+}
+function ownedMissing(list, id){ return !list || list.indexOf(id) < 0; }
+function renderBuildList(){
+    const cards = state.runCards || [];
+    const html = cards.length
+        ? cards.map(function(c){
+            return '<span class="pb-chip' + (c.evo ? ' pb-evo' : '') + '">' + (c.icon || '') + ' ' + (c.text || '') + '</span>';
+        }).join('')
+        : '<span class="pb-chip">Stock hull — no cards yet</span>';
+    const pk = document.getElementById('pause-kit');
+    if (pk) pk.innerHTML = html;
+    const dk = document.getElementById('death-kit');
+    if (dk) dk.innerHTML = html;
+}
+function kitBox(parent, w, h, d, x, y, z, mat, rx, ry, rz){
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    m.position.set(x, y, z);
+    if (rx) m.rotation.x = rx;
+    if (ry) m.rotation.y = ry;
+    if (rz) m.rotation.z = rz;
+    m.castShadow = true;
+    parent.add(m);
+    return m;
+}
+function kitCyl(parent, rt, rb, h, x, y, z, mat, rx, ry, rz){
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, 8), mat);
+    m.position.set(x, y, z);
+    if (rx) m.rotation.x = rx;
+    if (ry) m.rotation.y = ry;
+    if (rz) m.rotation.z = rz;
+    m.castShadow = true;
+    parent.add(m);
+    return m;
+}
+function syncPlayerTankParts(){
+    if (!player || !player.mesh || !player.turretPivot) return;
+    const ps = state.playerStats || {};
+    if (player.kitHull) {
+        try { player.mesh.remove(player.kitHull); disposeObject3D(player.kitHull); } catch (e) {}
+        player.kitHull = null;
+    }
+    if (player.kitTurret) {
+        try { player.turretPivot.remove(player.kitTurret); disposeObject3D(player.kitTurret); } catch (e) {}
+        player.kitTurret = null;
+    }
+    const hull = new THREE.Group();
+    const tur = new THREE.Group();
+    player.kitHull = hull;
+    player.kitTurret = tur;
+    player.mesh.add(hull);
+    player.turretPivot.add(tur);
+    const steel = new THREE.MeshStandardMaterial({ color: 0x6b7280, metalness: 0.74, roughness: 0.36 });
+    const dark  = new THREE.MeshStandardMaterial({ color: 0x2a3036, metalness: 0.62, roughness: 0.46 });
+    const gold  = new THREE.MeshStandardMaterial({ color: 0xd4a017, metalness: 0.82, roughness: 0.28 });
+    const cyan  = new THREE.MeshStandardMaterial({ color: 0x22d3ee, metalness: 0.7, roughness: 0.28, emissive: new THREE.Color(0x0e7490), emissiveIntensity: 0.35 });
+    const green = new THREE.MeshStandardMaterial({ color: 0x4ade80, metalness: 0.42, roughness: 0.44, emissive: new THREE.Color(0x166534), emissiveIntensity: 0.32 });
+    const red   = new THREE.MeshStandardMaterial({ color: 0xef4444, metalness: 0.5, roughness: 0.4, emissive: new THREE.Color(0x7f1d1d), emissiveIntensity: 0.28 });
+    const purp  = new THREE.MeshStandardMaterial({ color: 0xa78bfa, metalness: 0.66, roughness: 0.3, emissive: new THREE.Color(0x5b21b6), emissiveIntensity: 0.3 });
+    const orange= new THREE.MeshStandardMaterial({ color: 0xfb923c, metalness: 0.55, roughness: 0.4, emissive: new THREE.Color(0x9a3412), emissiveIntensity: 0.28 });
+    if ((ps.armor || 0) > 0) {
+        kitBox(hull, 0.18, 0.55, 3.2,  1.72, 0.95, 0.05, steel, 0, 0, 0.08);
+        kitBox(hull, 0.18, 0.55, 3.2, -1.72, 0.95, 0.05, steel, 0, 0, -0.08);
+    }
+    if ((ps.maxHp || 100) > 100) {
+        kitBox(hull, 2.15, 0.28, 0.55, 0, 1.05, 2.05, steel, -0.2, 0, 0);
+    }
+    if ((ps.speed || 100) > 100) {
+        kitCyl(hull, 0.09, 0.12, 0.7,  0.38, 0.72, -2.05, dark, Math.PI / 2, 0, 0);
+        kitCyl(hull, 0.09, 0.12, 0.7, -0.38, 0.72, -2.05, dark, Math.PI / 2, 0, 0);
+    }
+    if ((ps.regen || 0) > 0) {
+        kitCyl(hull, 0.16, 0.16, 0.55, 0.55, 1.35, -1.35, green, 0, 0, 0);
+        kitCyl(hull, 0.16, 0.16, 0.55, -0.55, 1.35, -1.35, green, 0, 0, 0);
+    }
+    if ((ps.coinBonus || 0) > 0) kitBox(hull, 0.55, 0.38, 0.45, 0, 1.35, -1.7, gold);
+    if ((ps.healOnKill || 0) > 0) kitBox(hull, 0.42, 0.28, 0.32, 0.85, 1.38, -0.2, new THREE.MeshStandardMaterial({ color: 0xf8fafc, metalness: 0.2, roughness: 0.5 }));
+    if ((ps.xpBonus || 0) > 0) kitBox(hull, 0.08, 0.7, 0.22, -0.15, 1.7, -1.55, gold);
+    if ((ps.adrenaline || 0) > 0) {
+        kitBox(hull, 0.12, 0.18, 2.4,  1.38, 1.18, 0, red);
+        kitBox(hull, 0.12, 0.18, 2.4, -1.38, 1.18, 0, red);
+    }
+    if ((ps.fireRate || 100) > 100) kitBox(tur, 0.55, 0.32, 0.42, 0.95, 0.55, -0.15, dark);
+    if ((ps.damage || 100) > 100) kitCyl(tur, 0.22, 0.2, 0.42, 0, 0.55, 2.55, dark, Math.PI / 2, 0, 0);
+    if ((ps.crit || 0) > 0) kitCyl(tur, 0.08, 0.1, 0.55, 0.42, 1.05, 0.35, dark, Math.PI / 2, 0, 0.15);
+    if ((ps.pierce || 0) > 0) kitCyl(tur, 0.14, 0.11, 0.32, 0, 0.55, 3.15, cyan, Math.PI / 2, 0, 0);
+    const extraBarrels = Math.min(4, ps.multishot || 0);
+    for (let i = 0; i < extraBarrels; i++) {
+        const side = (i % 2 === 0 ? 1 : -1) * (0.38 + Math.floor(i / 2) * 0.28);
+        kitCyl(tur, 0.09, 0.11, 2.6, side, 0.5, 2.2, dark, Math.PI / 2, 0, 0);
+    }
+    if ((ps.missile || 0) > 0) {
+        kitBox(tur, 0.55, 0.22, 0.85, -0.95, 0.85, 0.15, orange);
+        kitCyl(tur, 0.07, 0.07, 0.7, -1.08, 0.85, 0.2, orange, Math.PI / 2, 0, 0);
+        kitCyl(tur, 0.07, 0.07, 0.7, -0.82, 0.85, 0.2, orange, Math.PI / 2, 0, 0);
+    }
+    if ((ps.splash || 0) > 0) {
+        kitCyl(tur, 0.12, 0.12, 0.28, 0.72, 0.42, 0.55, orange, 0, 0, 0);
+        kitCyl(tur, 0.12, 0.12, 0.28, 0.72, 0.42, 0.22, orange, 0, 0, 0);
+    }
+    if ((ps.shield || 0) > 0) kitBox(hull, 0.5, 0.32, 0.4, 0, 1.42, 0.15, cyan);
+    if (ps.evo_cluster) {
+        kitCyl(tur, 0.06, 0.06, 0.55, -0.95, 1.05, 0.55, orange, Math.PI / 2, 0, 0);
+        kitCyl(tur, 0.06, 0.06, 0.55, -0.72, 1.05, 0.55, orange, Math.PI / 2, 0, 0);
+        kitCyl(tur, 0.06, 0.06, 0.55, -1.18, 1.05, 0.55, orange, Math.PI / 2, 0, 0);
+    }
+    if (ps.evo_bastion) kitCyl(hull, 0.55, 0.72, 0.35, 0, 1.55, 0.1, steel, 0, 0, 0);
+    if (ps.evo_prism) kitCyl(tur, 0.16, 0.05, 0.55, 0, 0.55, 3.45, cyan, Math.PI / 2, 0, 0);
+    if (ps.evo_nanite) kitCyl(hull, 0.22, 0.22, 0.4, 0, 1.55, -0.9, green, 0, 0, 0);
+    if (ps.evo_afterburner) {
+        kitCyl(hull, 0.14, 0.2, 0.55,  0.55, 0.7, -2.2, red, Math.PI / 2, 0, 0);
+        kitCyl(hull, 0.14, 0.2, 0.55, -0.55, 0.7, -2.2, red, Math.PI / 2, 0, 0);
+    }
+    if (ps.evo_siege) kitBox(tur, 0.7, 0.38, 0.55, 0, 1.05, -0.35, steel);
+}
+
 // combo logic
 function addKillReward(enemy){
     state.combo++;
@@ -7499,25 +7809,32 @@ function showUpgradeChoices(kind){
     state.input.isFiring = false;
     try {
 
-    const pool = [...CHOICE_UPGRADES];
-    const cardCount = 3; // v27.5: always 3 cards, pick one
-    const picks = [];
-    while (picks.length < cardCount && pool.length) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
-
     const isBossLoot = kind === 'boss' || state.nextChoiceIsBoss;
     state.nextChoiceIsBoss = false;
+    const pool = [...CHOICE_UPGRADES];
+    const evoAvail = isBossLoot ? eligibleEvolutions() : [];
+    const cardCount = 3; // v27.5: always 3 cards, pick one
+    const picks = [];
+    if (evoAvail.length) picks.push(evoAvail[Math.floor(Math.random() * evoAvail.length)]);
+    while (picks.length < cardCount && pool.length) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+    for (let si = picks.length - 1; si > 0; si--) {
+        const sj = Math.floor(Math.random() * (si + 1));
+        const tmp = picks[si]; picks[si] = picks[sj]; picks[sj] = tmp;
+    }
+
     const metaRR = isBossLoot ? 0 : ((state.meta || {}).cards || 0);
     const overlay = document.createElement('div');
     overlay.id = 'upgrade-choice';
     overlay.innerHTML = '<div class="uc-title">' + (isBossLoot ? '🏆 BOSS REWARD' : ('🌟 LEVEL ' + state.level)) + '</div>' +
-                        '<div class="uc-subtitle">' + (isBossLoot ? 'Choose one bonus' : 'Choose an upgrade') + '</div>' +
+                        '<div class="uc-subtitle">' + (isBossLoot ? (evoAvail.length ? 'Choose one bonus — Evolution ready' : 'Choose one bonus') : 'Choose an upgrade') + '</div>' +
                         '<div class="uc-cards"></div>';
     const cards = overlay.querySelector('.uc-cards');
     picks.forEach(up => {
         const card = document.createElement('button');
-        card.className = 'uc-card';
+        card.className = 'uc-card' + (up.evo ? ' uc-evo' : '');
         card.innerHTML = '<div class="uc-icon">' + up.icon + '</div>' +
                           '<div class="uc-name">' + up.text + '</div>' +
+                          (up.evo ? '<div class="uc-tag">EVOLUTION</div>' : '') +
                           '<div class="uc-desc">' + up.desc + '</div>';
         const pick = (ev) => { if (ev) { ev.preventDefault(); ev.stopPropagation(); } pickUpgradeCard(card, up, overlay, cards); };
         card.addEventListener('pointerup', pick);
@@ -7572,6 +7889,14 @@ function pickUpgradeCard(card, up, overlay, cards){
 }
 
 function applyUpgrade(up){
+    if (up && up.evo) {
+        noteRunCard(up);
+        state.playerStats['evo_' + up.id] = 1;
+        try { syncPlayerTankParts(); } catch (e) {}
+        try { renderBuildList(); } catch (e) {}
+        updateHUD();
+        return;
+    }
     if (up.stat === 'maxHp') {
         state.playerStats.maxHp += up.amount;
         if (player) {
@@ -7581,6 +7906,9 @@ function applyUpgrade(up){
     } else {
         state.playerStats[up.stat] = (state.playerStats[up.stat] || 0) + up.amount;
     }
+    noteRunCard(up);
+    try { syncPlayerTankParts(); } catch (e) {}
+    try { renderBuildList(); } catch (e) {}
     updateHUD();
 }
 
