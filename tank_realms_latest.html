@@ -73,13 +73,13 @@
         }
 
         /* v7: compact HUD chips */
-        .hud-chip {
+        .hud-chip { /* v30 (owner): compact — score/coins chip and level chip no longer collide */
             background: rgba(0,0,0,0.5);
             border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 10px;
-            padding: 3px 10px;
+            border-radius: 9px;
+            padding: 2px 8px;
             color: #fff;
-            font-size: 13px;
+            font-size: 11.5px;
             font-weight: 700;
             backdrop-filter: blur(8px);
             text-shadow: 0 1px 3px rgba(0,0,0,0.95);
@@ -91,7 +91,8 @@
             gap: 8px;
             letter-spacing: 0.5px;
         }
-        .level-chip .xp-bar-container { width: 56px; height: 4px; margin-top: 0; }
+        .level-chip .xp-bar-container { width: 44px; height: 4px; margin-top: 0; }
+        #xp-pct { font-size: 10.5px; opacity: 0.85; min-width: 28px; text-align: right; }
         #hud-bottom { bottom: max(12px, env(safe-area-inset-bottom)); }
         #hp-panel {
             display: flex;
@@ -107,7 +108,7 @@
         #hp-pct { font-size: 11px; font-weight: 700; color: #fff; min-width: 30px; text-align: right; text-shadow: 0 1px 3px rgba(0,0,0,0.95); }
         #hp-panel .hp-text { display: none; } /* v27.4 (owner): scale display, no numbers */
         .hp-text { font-size: 13px; font-weight: 700; min-width: 48px; text-shadow: 0 1px 3px rgba(0,0,0,0.95); }
-        #minimap { margin-top: 54px; }
+        #minimap { margin-top: 46px; }
         .pause-build { margin: 2px 0 6px; text-align: center; }
         .pb-title { color: rgba(255,255,255,0.5); font-size: 11px; letter-spacing: 3px; margin-bottom: 8px; }
         .pb-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 340px; }
@@ -226,20 +227,20 @@
         }
         .hud-left {
             position: absolute;
-            left: max(16px, env(safe-area-inset-left));
-            top: max(15px, env(safe-area-inset-top));
-            max-width: 40vw;
+            left: max(10px, env(safe-area-inset-left));
+            top: max(10px, env(safe-area-inset-top));
+            max-width: 27vw; /* v30: leave the centre column clear */
         }
         .hud-center {
             position: absolute;
             left: 50%;
-            top: max(15px, env(safe-area-inset-top));
+            top: max(10px, env(safe-area-inset-top));
             transform: translateX(-50%);
-            max-width: 32vw;
+            max-width: 38vw;
             display: flex; /* v27.4: level chip on top, HP scale right under it */
             flex-direction: column;
             align-items: center;
-            gap: 4px;
+            gap: 3px;
         }
         .hud-top-right {
             position: absolute;
@@ -845,6 +846,7 @@
             <div class="hud-center">
                 <div class="hud-chip level-chip">LV <span id="level">1</span>
                     <div class="xp-bar-container"><div class="xp-bar-fill" id="xp-bar"></div></div>
+                    <span id="xp-pct">0%</span>
                 </div>
                 <!-- v27.4 (owner): HP bar lives right below the level, shown as a scale only -->
                 <div id="hp-panel">
@@ -1259,19 +1261,30 @@
 
         // Enemy Types
         const ENEMY_TYPES = {
-            scout: { name: "Scout", color: 0xffd700, hp: 25, speed: 1.5, damage: 8, fireRate: 0.6, size: 0.7, points: 50, desc: "Fast but fragile" },
-            soldier: { name: "Soldier", color: 0xdc2626, hp: 50, speed: 1.0, damage: 12, fireRate: 0.4, size: 1.0, points: 100, desc: "Balanced fighter" },
+            scout: { name: "Scout", color: 0xffd700, hp: 25, speed: 1.5, damage: 11, fireRate: 0.6, size: 0.7, points: 50, desc: "Fast but fragile" },
+            soldier: { name: "Soldier", color: 0xdc2626, hp: 50, speed: 1.0, damage: 16, fireRate: 0.4, size: 1.0, points: 100, desc: "Balanced fighter" },
             heavy: { name: "Heavy", color: 0x78350f, hp: 120, speed: 0.5, damage: 25, fireRate: 0.25, size: 1.5, points: 200, desc: "Slow but deadly" },
             sniper: { name: "Sniper", color: 0x7c3aed, hp: 35, speed: 0.6, damage: 30, fireRate: 0.15, size: 0.9, points: 175, desc: "Long range threat" },
-            healer: { name: "Medic", color: 0x22c55e, hp: 60, speed: 0.8, damage: 5, fireRate: 0.3, size: 0.85, points: 150, healAmount: 8, desc: "Heals allies" },
+            healer: { name: "Medic", color: 0x22c55e, hp: 60, speed: 0.8, damage: 6, fireRate: 0.3, size: 0.85, points: 150, healAmount: 8, desc: "Heals allies" },
             berserker: { name: "Berserker", color: 0xec4899, hp: 80, speed: 1.3, damage: 18, fireRate: 0.7, size: 1.2, points: 250, desc: "Aggressive charger" },
             // v5: new enemy variety
             bomber:   { name: "Bomber",  color: 0xf43f5e, hp: 40, speed: 1.6, damage: 30, fireRate: 0,   size: 0.8,  points: 150, desc: "Suicide rusher — keep your distance!" },
-            phantom:  { name: "Phantom", color: 0x94a3b8, hp: 55, speed: 1.2, damage: 14, fireRate: 0.5, size: 0.9,  points: 220, desc: "Cloaked striker — watch the shimmer" },
-            gunner:   { name: "Gunner",  color: 0xa855f7, hp: 90, speed: 0.7, damage: 10, fireRate: 0.5, size: 1.15, points: 180, desc: "Fires deadly three-round bursts" },
+            phantom:  { name: "Phantom", color: 0x94a3b8, hp: 55, speed: 1.2, damage: 18, fireRate: 0.5, size: 0.9,  points: 220, desc: "Cloaked striker — watch the shimmer" },
+            gunner:   { name: "Gunner",  color: 0xa855f7, hp: 90, speed: 0.7, damage: 13, fireRate: 0.5, size: 1.15, points: 180, desc: "Fires deadly three-round bursts" },
             // v26: late-game pressure trio
             skirmisher: { name: "Skirmisher", color: 0x2dd4bf, hp: 70,  speed: 1.6,  damage: 22, fireRate: 0.75, size: 0.75, points: 260, desc: "Keeps its distance — retreats when you push" },
-            wasp:       { name: "Wasp",       color: 0xfacc15, hp: 30,  speed: 2.35, damage: 9,  fireRate: 1.1,  size: 0.55, points: 95,  desc: "Fast weaving swarm — hard to hit" },
+            wasp:       { name: "Wasp",       color: 0xfacc15, hp: 30,  speed: 2.35, damage: 11,  fireRate: 1.1,  size: 0.55, points: 95,  desc: "Fast weaving swarm — hard to hit" },
+            // v30 (owner's table): advanced variants — tougher recolors with tracking bullets
+            scouter:      { name: "Scouter",     color: 0xfff3b0, hp: 35,  speed: 1.6, damage: 13, fireRate: 0.6, size: 0.7,  points: 75,  desc: "Scout elite — slow curving shots" },
+            soldierpro:   { name: "Soldier Pro", color: 0xef4444, hp: 70,  speed: 1.05, damage: 18, fireRate: 0.4, size: 1.0,  points: 150, desc: "Drill-line veteran" },
+            heavier:      { name: "Heavier",     color: 0x8b5a2b, hp: 180, speed: 0.45, damage: 28, fireRate: 0.25, size: 1.6, points: 300, desc: "A wall that shoots straight" },
+            picker:       { name: "Picker",      color: 0xa78bfa, hp: 45,  speed: 0.6, damage: 34, fireRate: 0.15, size: 0.9,  points: 260, desc: "Slow relentless seekers" },
+            squasher:     { name: "Squasher",    color: 0x5eead4, hp: 95,  speed: 1.6, damage: 25, fireRate: 0.75, size: 0.75, points: 390, desc: "Hit-and-run with fast trackers" },
+            deathbringer: { name: "Deathbringer",color: 0xfb7185, hp: 60,  speed: 1.5, damage: 24, fireRate: 0.5, size: 0.85, points: 225, desc: "Bomber strain that shoots" },
+            phantasm:     { name: "Phantasm",    color: 0xc7d2fe, hp: 75,  speed: 1.25, damage: 20, fireRate: 0.5, size: 0.9,  points: 330, desc: "Ghost with a seeker hive" },
+            gunnier:      { name: "Gunnier",     color: 0xd946ef, hp: 130, speed: 0.7, damage: 15, fireRate: 0.5, size: 1.15, points: 270, desc: "Single heavy seeker shots" },
+            tombraider:   { name: "Tomb Raider", color: 0xd4a373, hp: 140, speed: 2.0, damage: 30, fireRate: 0.6, size: 0.95, points: 500, desc: "Relic-hunting speedster" },
+            hammer:       { name: "Hammer",      color: 0x64748b, hp: 910, speed: 0.42, damage: 50, fireRate: 0.3, size: 2.1,  points: 1000, desc: "Juggernaut bloodline — seeker shells" },
             juggernaut: { name: "Juggernaut", color: 0x334155, hp: 650, speed: 0.4,  damage: 45, fireRate: 0.3,  size: 2.0,  points: 700, desc: "Armored wall — it will not stop coming" },
             // v6(C): bosses
             warlord:  { name: "WARLORD",  color: 0xb91c1c, hp: 600, speed: 0.45, damage: 20, fireRate: 0.3, size: 2.6, points: 1500, desc: "BOSS — five-shell barrages" },
@@ -1324,7 +1337,7 @@
             runCoins: 0,
             xp: 0,
             level: 1,
-            xpToNext: 120, // v29: slower start
+            xpToNext: 200, // v30: slower start (scout=25xp -> 8 kills for lv2)
             currentBiome: 0,
             lastFireTime: 0,
             lastSpawnTime: 0,
@@ -3116,8 +3129,19 @@
             healer:     { color: 0x00ff00, speed: 1.0,  life: 1.2,  scale: 1.0,  homing: 0    },
             phantom:    { color: 0xb0bec5, speed: 1.3,  life: 1.3,  scale: 0.9,  homing: 0    },
             skirmisher: { color: 0x2dd4bf, speed: 1.15, life: 1.1,  scale: 0.9,  homing: 0    },
-            wasp:       { color: 0xfacc15, speed: 1.45, life: 0.8,  scale: 0.6,  homing: 0    },
+            wasp:       { color: 0xfacc15, speedAbs: 40, life: 1.6, scale: 0.6,  homing: 1.0 }, // v30 (owner): 40 / 0.10
             juggernaut: { color: 0x60a5fa, speed: 0.6,  life: 2.6,  scale: 1.6,  homing: 2.4 },
+            // v30 (owner's table): variant shots — absolute speeds + curve*10 steering
+            scouter:      { color: 0xfff3b0, speedAbs: 10, life: 3.0, scale: 0.8,  homing: 0.9 },
+            soldierpro:   { color: 0xef4444, speedAbs: 17, life: 3.0, scale: 1.0,  homing: 0.5 },
+            heavier:      { color: 0x8b5a2b, speedAbs: 20, life: 2.6, scale: 1.35, homing: 0   },
+            picker:       { color: 0xa78bfa, speedAbs: 10, life: 3.5, scale: 0.75, homing: 2.0 },
+            squasher:     { color: 0x5eead4, speedAbs: 40, life: 2.2, scale: 0.85, homing: 0.9 },
+            deathbringer: { color: 0xfb7185, speedAbs: 25, life: 2.6, scale: 0.9,  homing: 0.9 },
+            phantasm:     { color: 0xc7d2fe, speedAbs: 28, life: 2.6, scale: 0.9,  homing: 1.0 },
+            gunnier:      { color: 0xd946ef, speedAbs: 30, life: 2.6, scale: 1.1,  homing: 3.0 },
+            tombraider:   { color: 0xd4a373, speedAbs: 31, life: 2.6, scale: 1.0,  homing: 0.9 },
+            hammer:       { color: 0x93c5fd, speedAbs: 30, life: 3.0, scale: 1.65, homing: 1.5 },
             warlord:    { color: 0xff3b3b, speed: 0.95, life: 1.6,  scale: 1.35, homing: 1.8 },
             tempest:    { color: 0x38bdf8, speed: 1.05, life: 1.5,  scale: 1.2,  homing: 2.0 },
             colossus:   { color: 0xffb020, speed: 0.85, life: 2.0,  scale: 1.5,  homing: 2.1 },
@@ -3157,12 +3181,12 @@
             bulletGroup.lookAt(bulletGroup.position.clone().add(d));
             if (style && style.scale) bulletGroup.scale.setScalar(style.scale); // v29: shot size varies by enemy
             bulletGroup.userData = {
-                vel: d.multiplyScalar(CONFIG.bulletSpeed * (source.isPlayer ? 1 : (style ? (style.speed || 1) : 1))),
+                vel: d.multiplyScalar(source.isPlayer ? CONFIG.bulletSpeed : (style && style.speedAbs ? style.speedAbs : CONFIG.bulletSpeed * (style ? (style.speed || 1) : 1))), // v30: variants fire at absolute speeds
                 isPlayer: source.isPlayer,
                 damage: source.isPlayer ? damage : damage * (state.diffMult.dmg || 1) * (source.damageMult || 1), // v10: difficulty + v26: level scaling
                 pierce: source.isPlayer ? (state.playerStats.pierce || 0) : 0,
                 hitList: [],
-                life: source.isPlayer ? 1.2 : (style ? (style.life || 1.2) : 1.2),
+                life: source.isPlayer ? 1.2 : (style ? (style.life || (style.speedAbs ? 3.0 : 1.2)) : 1.2), // v30: slow trackers live longer
                 homing: homing, // v29: rad/s steering budget toward the player
                 color: bulletColor
             };
@@ -3626,7 +3650,7 @@
             const L = state.level || 1;
             return {
                 hp:  1 + Math.max(0, L - 1) * 0.05  + Math.max(0, L - 10) * 0.028 + Math.max(0, L - 20) * 0.04, // v27.2: gentler lv10-20 (device report: lv12 still a bit much)
-                dmg: 1 + Math.max(0, L - 1) * 0.032 + Math.max(0, L - 12) * 0.028 + Math.max(0, L - 22) * 0.03,
+                dmg: 1 + Math.max(0, L - 1) * 0.045 + Math.max(0, L - 12) * 0.04 + Math.max(0, L - 22) * 0.045, // v30 (owner): enemies must keep hurting as levels climb
                 spd: 1 + Math.min(0.35, Math.max(0, L - 1) * 0.010),
                 pts: 1 + Math.max(0, L - 1) * 0.05  + Math.max(0, L - 12) * 0.03
             };
@@ -3646,6 +3670,17 @@
             if (level >= 5) types.push('skirmisher');
             if (level >= 14) types.push('juggernaut'); // v27.2: no 1000+HP walls before lv14 (device report: too tanky at lv12)
             if (level >= 12) types.push('wasp');
+            // v30 (owner's table): variants enter at their levels, single weight each
+            if (level >= 2) types.push('scouter');
+            if (level >= 3) types.push('soldierpro');
+            if (level >= 4) types.push('heavier');
+            if (level >= 5) types.push('picker');
+            if (level >= 6) types.push('squasher');
+            if (level >= 7) types.push('deathbringer');
+            if (level >= 9) types.push('phantasm');
+            if (level >= 11) types.push('gunnier');
+            if (level >= 15) types.push('tombraider');
+            if (level >= 17) types.push('hammer');
             return types[Math.floor(Math.random() * types.length)];
         }
 
@@ -3659,6 +3694,7 @@
             { type: 'fortress', interval: 3.4 },
         ];
         const _bossDir = new THREE.Vector3();
+        const _tv6 = new THREE.Vector3(); // v30: camera look-ahead scratch
         const _bossAxis = new THREE.Vector3(0, 1, 0);
 
         function showBossBanner(text) {
@@ -4175,7 +4211,7 @@
             state.runCoins = resume ? opts.resume.runCoins : 0;
             state.xp = resume ? opts.resume.xp : 0;
             state.level = resume ? opts.resume.level : ((mode === 'levels' && opts.startLevel) || 1);
-            state.xpToNext = resume ? opts.resume.xpToNext : 120; // v29: slower start
+            state.xpToNext = resume ? opts.resume.xpToNext : 200; // v30: slower start
             // v13: named saves are managed in the Casual hub
             state.isPlaying = true;
             state.gamePhase = 'playing';
@@ -4275,7 +4311,7 @@
             while (state.xp >= state.xpToNext) {
                 state.xp -= state.xpToNext;
                 state.level++;
-                state.xpToNext = Math.floor(state.xpToNext * 1.5); // v29 (owner): card picks arrive slower — player was spiking too fast
+                state.xpToNext = Math.floor(state.xpToNext * 1.32); // v30 (owner): leveling was STILL too fast
 
                 // v4 (Upgrades-A): every level-up offers a 3-card choice (queues if one is open)
                 SFX.levelUp(); // v23
@@ -4586,7 +4622,7 @@
             enemy.damageMult = sc.dmg;
             enemy.speedMult = sc.spd;
             enemy.pointValue = Math.round((ENEMY_TYPES[type].points || 100) * sc.pts);
-            if (type === 'juggernaut') enemy.armorFlat = 2.5 + state.level * 0.12; // v27.2: lighter plating (device report: too tanky at lv12)
+            if (type === 'juggernaut' || type === 'hammer') enemy.armorFlat = 2.5 + state.level * 0.12; // v27.2/v30: plating
             // v27.5 (owner: "lv15+ gets repetitive"): ELITE variants — rare golden
             // upgrades mixed into normal waves. Tankier, deadlier, worth 3x points
             // and coins, and they look the part (gold sheen, bigger, starred name).
@@ -5266,10 +5302,15 @@
             const baseY = state.cameraMode === 'wide' ? 35 : 27;
             const baseZ = state.cameraMode === 'wide' ? 47 : 34;
             const camOffset = _tv5.set(0, baseY * state.camF, baseZ * state.camF);
-            const targetCam = _tv1.copy(player.mesh.position).add(camOffset);
+            // v30 (owner): velocity look-ahead — the camera drifts toward where you're
+            // driving, so your tank sits low-centre on screen and the world ahead (and
+            // the top HUD) stops crowding the tank when moving "up".
+            const lead = _tv6.copy(player.velocity).multiplyScalar(0.55);
+            if (lead.length() > 12) lead.setLength(12);
+            const targetCam = _tv1.copy(player.mesh.position).add(camOffset).add(lead);
             const camK = state.cameraMode === 'wide' ? 0.045 : 0.06; // FIX (Tier 4): dt-normalized lerp
             camera.position.lerp(targetCam, 1 - Math.pow(1 - camK, dt * 60));
-            camera.lookAt(player.mesh.position.x, 0, player.mesh.position.z + 6); // FIX (v2/P1)
+            camera.lookAt(player.mesh.position.x + lead.x, 0, player.mesh.position.z + 6 + lead.z); // FIX (v2/P1) + v30 lead
 
             if (state.cameraShake > 0) {
                 const shakeScale = state.cameraMode === 'wide' ? 0.55 : 1;
@@ -5385,16 +5426,17 @@
         function refreshCoinsHUD() {
             const el = document.getElementById('coins');
             const c = state.coins || 0;
-            if (el && c !== _lastCoinsShown) { _lastCoinsShown = c; el.innerText = c; }
+            if (el && c !== _lastCoinsShown) { _lastCoinsShown = c; el.innerText = c >= 10000 ? (c / 1000).toFixed(1) + 'k' : c; } // v30: compact
         }
 
         function updateHUD() {
-            dom('score').textContent = state.score; // FIX (Tier 4): cached lookups
+            dom('score').textContent = state.score >= 10000 ? (state.score / 1000).toFixed(1) + 'k' : state.score; // v30: compact — chips stopped overlapping
             dom('level').textContent = state.level;
             refreshCoinsHUD(); // v27.1 (perf): coins ride along with every HUD refresh
             
             const xpPct = (state.xp / state.xpToNext) * 100;
             dom('xp-bar').style.width = xpPct + '%';
+            if (dom('xp-pct')) dom('xp-pct').textContent = Math.round(xpPct) + '%'; // v30 (owner): XP in %
             
             dom('stat-speed').textContent = state.playerStats.speed;
             dom('stat-damage').textContent = state.playerStats.damage;

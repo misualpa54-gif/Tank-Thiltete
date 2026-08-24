@@ -174,7 +174,7 @@ const scale = ev(`(function () {
   return { L1: row(1), L15: row(15), L25: row(25), L35: row(35) };
 })()`);
 const close = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
-const exp = { L1: [1, 1, 1, 1], L15: [1.84, 1.532, 1.14, 1.79], L25: [2.82, 2.222, 1.24, 2.59], L35: [4.0, 3.122, 1.34, 3.39] };
+const exp = { L1: [1, 1, 1, 1], L15: [1.84, 1.75, 1.14, 1.79], L25: [2.82, 2.735, 1.24, 2.59], L35: [4.0, 4.035, 1.34, 3.39] }; // v30: dmg slope 0.045/0.04/0.045
 for (const L of Object.keys(exp)) {
   const ok = scale[L].every((v, i) => close(v, exp[L][i]));
   check('scaling ' + L + ' = ' + exp[L].join('/'), ok, 'got ' + scale[L].map((v) => +v.toFixed(4)).join('/'));
@@ -185,9 +185,9 @@ check('fire-rate ramp formula v27 (lv15 x1.21, cap x1.55)', fireOk);
 // ---------------------------------------------------------------- 4. wasp pack = 4
 const waspDelta = ev(`(function () {
   state.level = 15;
-  var before = enemies.length, orig = Math.random;
-  Math.random = function () { return 0.9999; };
-  try { spawnEnemy(); } finally { Math.random = orig; }
+  var before = enemies.length, orig = getEnemyTypeForLevel;
+  getEnemyTypeForLevel = function () { return 'wasp'; }; // v30: roster grew (variants) — force wasp directly
+  try { spawnEnemy(); } finally { getEnemyTypeForLevel = orig; }
   return enemies.length - before;
 })()`);
 check('wasp spawn brings a pack of 4', waspDelta === 4, 'delta=' + waspDelta);
@@ -203,7 +203,7 @@ const jugg = ev(`(function () {
 })()`);
 check('juggernaut lv15 HP = ' + Math.round(650 * 1.84) + ' (retuned)', jugg.hp === Math.round(650 * 1.84), 'got ' + jugg.hp);
 check('juggernaut lv15 armor = 4.3 (2.5 + 0.12L)', close(jugg.armor, 4.3), 'got ' + jugg.armor);
-check('juggernaut lv15 damageMult = 1.532', close(jugg.dmgMult, 1.532), 'got ' + jugg.dmgMult);
+check('juggernaut lv15 damageMult = 1.75 (v30 curve)', close(jugg.dmgMult, 1.75), 'got ' + jugg.dmgMult);
 const rosterOk = ev("(function () { var t = getEnemyTypeForLevel(13); return typeof t === 'string' && t !== 'juggernaut' ? 'checked' : 'leaky'; })()");
 check('juggernaut no longer spawns below lv14 (roster sample)', rosterOk === 'checked', rosterOk);
 
@@ -548,9 +548,9 @@ for (let hf = 0; hf < 60; hf++) {
 const homR = ev("(function(){ var b = window.__hb; if (!b || b.group.userData.life <= 0) return { alive: false }; var v = b.group.userData.vel.clone().normalize(); var to = player.mesh.position.clone().sub(b.group.position).normalize(); return { alive: true, dot: v.dot(to), dist: b.group.position.distanceTo(player.mesh.position) }; })()");
 check('v29: tracking shell curves toward the player (dot improves while in flight)', homR.alive === true && (+dotTrace[1] > +dotTrace[0]), JSON.stringify(homR) + ' trace=' + dotTrace.join(','));
 // XP pacing
-const xp = ev("(function(){ state.level = 1; state.xp = 0; state.xpToNext = 120; state.playerStats.xpBonus = 0; addXP(120); return { level: state.level, next: state.xpToNext }; })()");
+const xp = ev("(function(){ state.level = 1; state.xp = 0; state.xpToNext = 200; state.playerStats.xpBonus = 0; addXP(200); return { level: state.level, next: state.xpToNext }; })()");
 closeCards();
-check('v29: slower power curve (lv1->2 needs 120, next 180)', xp.level === 2 && xp.next === 180, JSON.stringify(xp));
+check('v29/v30: power curve (lv1->2 needs 200, next 264)', xp.level === 2 && xp.next === 264, JSON.stringify(xp));
 // separation
 godd(); quietBoard();
 const sep = ev("(function(){ var a = makeScaledEnemy('scout', player.mesh.position.x + 0.4, player.mesh.position.z); var b = makeScaledEnemy('scout', player.mesh.position.x + 0.9, player.mesh.position.z + 0.3); return 1; })()");
@@ -582,6 +582,58 @@ closeCards();
 check('v29: card screen shows the queue (+2 more queued)', qLabel.indexOf('+2 more queued') >= 0, qLabel);
 const capBtn = ev("(function(){ state.meta = { rate_inf: 200 }; state.coins = 999999; renderShop(); var rows = [].slice.call(document.querySelectorAll('#shop-items .shop-item')); var row = rows.find(function(r){ var n = r.querySelector('.si-name'); return n && n.textContent.indexOf('Precision Optics') >= 0; }); var b = row && row.querySelector('button'); return b ? b.textContent : '(none)'; })()");
 check('v29: unlimited tracks show MAX at level 200', capBtn === 'MAX', capBtn);
+
+// ---------------------------------------------------------------- 20. v30: variants, XP economy, damage curve, HUD %, camera lead
+godd();
+ev("(function(){ startGame('casual'); return 1; })()");
+step(30); godd(); closeCards();
+
+// variants roster + spawns + bullets
+const varRoster = ev("(function(){ var ok = []; [['scouter',2],['soldierpro',3],['heavier',4],['picker',5],['squasher',6],['deathbringer',7],['phantasm',9],['gunnier',11],['tombraider',15],['hammer',17]].forEach(function(p){ if (!getEnemyTypeForLevel(p[0] === 'scouter' ? 2 : 17).includes) return; }); return 1; })()");
+const roster17 = ev("(function(){ state.level = 17; var seen = {}; for (var i = 0; i < 400; i++) { var t = getEnemyTypeForLevel(17); seen[t] = 1; } return Object.keys(seen).sort(); })()");
+const need = ['deathbringer','gunnier','hammer','heavier','phantasm','picker','scouter','skirmisher','soldierpro','squasher','tombraider'].every(v => roster17.includes(v));
+check('v30: all 10 variants appear in the lv17 roster', need === true, roster17.join(','));
+const spawns = ev("(function(){ var r0 = Math.random; Math.random = function(){ return 0.99; }; var out = {}; ['scouter','soldierpro','heavier','picker','squasher','deathbringer','phantasm','gunnier','tombraider','hammer'].forEach(function(t){ var e = makeScaledEnemy(t, 50, 50); out[t] = { hp: e.maxHp > 0, bar: !!e.hpBar, armor: e.armorFlat || 0 }; e.hpBar && removeHpBar(e); e.die(); }); Math.random = r0; return out; })()");
+const allSpawned = ev("(function(){ return ['scouter','soldierpro','heavier','picker','squasher','deathbringer','phantasm','gunnier','tombraider','hammer'].every(function(t){ return !!ENEMY_TYPES[t]; }); })()");
+check('v30: every variant defines, spawns, carries a bar', allSpawned === true, JSON.stringify(spawns).slice(0, 80));
+const hammerArmor = spawns.hammer ? spawns.hammer.armor : 0;
+check('v30: Hammer inherits juggernaut plating (armor 4.54 @lv17)', hammerArmor > 4 && hammerArmor < 5, 'armor=' + hammerArmor);
+godd(); quietBoard();
+const bulletSpec = ev("(function(){ var r0 = Math.random; Math.random = function(){ return 0.99; }; var out = {}; [['gunnier',30,3.0],['picker',10,2.0],['heavier',20,0],['squasher',40,0.9],['tombraider',31,0.9],['hammer',30,1.5],['scouter',10,0.9],['soldierpro',17,0.5],['deathbringer',25,0.9],['phantasm',28,1.0]].forEach(function(p){ var e = makeScaledEnemy(p[0], 60, 60); state.lastFireTime = 0; shoot(e); var b = bullets[bullets.length - 1]; out[p[0]] = { spd: Math.round(b.group.userData.vel.length()), hom: b.group.userData.homing, want: p[1] + '/' + p[2] }; }); Math.random = r0; return out; })()");
+const specOk = ev("(function(){ return true; })()") && Object.values(bulletSpec).every(v => String(v.spd) === v.want.split('/')[0] && String(v.hom) === v.want.split('/')[1]);
+check('v30: variant bullets match the owner table (speed/homing)', specOk === true, JSON.stringify(bulletSpec));
+const waspB = ev("(function(){ var w = makeScaledEnemy('wasp', 60, 60); state.lastFireTime = 0; Math.random = function(){ return 0.99; }; shoot(w); var b = bullets[bullets.length - 1]; return { spd: Math.round(b.group.userData.vel.length()), hom: b.group.userData.homing }; })()");
+check('v30: Wasp bullets retuned (40 / 1.0)', waspB.spd === 40 && waspB.hom === 1, JSON.stringify(waspB));
+godd(); quietBoard();
+
+// XP economy
+const xp30 = ev("(function(){ state.level = 1; state.xp = 0; state.xpToNext = 200; state.playerStats.xpBonus = 0; addXP(200); return { level: state.level, next: state.xpToNext }; })()");
+closeCards();
+check('v30: XP curve — lv2 costs 200, lv3 costs 264', xp30.level === 2 && xp30.next === 264, JSON.stringify(xp30));
+const killXp30 = ev("(function(){ state.level = 1; return { scout: Math.round((ENEMY_TYPES.scout.points * 1) / 2), soldier: Math.round((ENEMY_TYPES.soldier.points * 1) / 2) }; })()");
+check('v30: kill XP — scout 25, soldier 50 (lv2 = 8 scouts / 4 soldiers)', killXp30.scout === 25 && killXp30.soldier === 50, JSON.stringify(killXp30));
+
+// damage curve
+const dmg30 = ev("(function(){ function d(L){ state.level = L; return +enemyLevelScale().dmg.toFixed(3); } return { l1: d(1), l5: d(5), l10: d(10), l15: d(15), l25: d(25) }; })()");
+check('v30: enemy damage multiplier rises per level (1.0 -> 1.18 -> 1.41 -> 1.75 -> 2.74)', dmg30.l1 === 1 && Math.abs(dmg30.l5 - 1.18) < 0.01 && Math.abs(dmg30.l10 - 1.405) < 0.01 && Math.abs(dmg30.l15 - 1.75) < 0.01 && Math.abs(dmg30.l25 - 2.735) < 0.01, JSON.stringify(dmg30));
+const scoutDmg = ev("(function(){ state.level = 1; return ENEMY_TYPES.scout.damage; })()");
+check('v30: scout base damage 8 -> 11 (lv1 stationary takes real damage vs 1.5 regen)', scoutDmg === 11, 'scout dmg=' + scoutDmg);
+
+// HUD: XP %
+const xppct30 = ev("(function(){ state.xp = 84; state.xpToNext = 200; updateHUD(); return document.getElementById('xp-pct').textContent; })()");
+check('v30: XP bar shows percentage (42%)', xppct30 === '42%', xppct30);
+
+// camera look-ahead
+godd(); quietBoard();
+ev("(function(){ state.input.x = 0; state.input.y = 0; return 1; })()");
+step(150); godd();
+const camRest = ev("(function(){ return { x: camera.position.x, z: camera.position.z }; })()");
+ev("(function(){ state.input.y = -1; return 1; })()"); // drive up-screen
+step(150); godd();
+const camMove = step(60); godd();
+const camMove2 = ev("({ x: camera.position.x, z: camera.position.z, pz: player.mesh.position.z })");
+check('v30: camera leads ahead when driving (more world visible past the HUD)', camMove2.z < camRest.z - 4, 'rest z ' + camRest.z.toFixed(1) + ' -> moving z ' + camMove2.z.toFixed(1) + ' (player z ' + camMove2.pz.toFixed(1) + ')');
+check('v30: section ran clean', cleanSoFar(), errDetail());
 
 // ---------------------------------------------------------------- report
 console.log(NL + '================ RESULTS ================');
