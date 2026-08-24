@@ -2010,6 +2010,10 @@
             gunnier:      { name: "Gunnier",      color: 0x6d28d9, hp: 110, speed: 0.68, damage: 12, fireRate: 0.55, size: 1.2,  points: 240, desc: "Single seeking shots — dodgeable curve" },
             tombraider:   { name: "TombRaider",   color: 0xbe123c, hp: 95,  speed: 1.85, damage: 17, fireRate: 0.6,  size: 0.9,  points: 280, desc: "Raider plus — curving dash fire" },
             hammer:       { name: "Hammer",       color: 0x0f172a, hp: 520, speed: 0.34, damage: 34, fireRate: 0.2,  size: 2.15, points: 850, desc: "Juggernaut plus — heavy seeking slugs" },
+            artillery:    { name: "Artillery",    color: 0xc2410c, hp: 70,  speed: 0.42, damage: 26, fireRate: 0.12, size: 1.25, points: 240, desc: "Lobs shells — step off the landing ring" },
+            shieldbearer: { name: "Shieldbearer", color: 0x1d4ed8, hp: 150, speed: 0.52, damage: 12, fireRate: 0.22, size: 1.35, points: 220, desc: "Front shield — shoot the flanks" },
+            minelayer:    { name: "Mine Layer",   color: 0x3f6212, hp: 85,  speed: 0.88, damage: 22, fireRate: 0.2,  size: 1.0,  points: 230, desc: "Drops mines — do not park on them" },
+            commander:    { name: "Commander",    color: 0xeab308, hp: 155, speed: 0.68, damage: 14, fireRate: 0.28, size: 1.18, points: 360, desc: "Buffs nearby tanks — cut the leader" },
             // v6(C): bosses
             warlord:  { name: "WARLORD",  color: 0xb91c1c, hp: 600, speed: 0.45, damage: 20, fireRate: 0.3, size: 2.6, points: 1500, desc: "BOSS — five-shell barrages" },
             colossus: { name: "COLOSSUS", color: 0x6d28d9, hp: 750, speed: 0.35, damage: 15, fireRate: 0.3, size: 3.0, points: 1800, desc: "BOSS — bursts and reinforcements" },
@@ -2044,6 +2048,10 @@
             gunnier:      { color: 0xa78bfa, speed: 30, life: 1.70, style: 'spark', home: 0.30 },
             tombraider:   { color: 0xfb7185, speed: 31, life: 1.70, style: 'bolt',  home: 0.09 },
             hammer:       { color: 0x64748b, speed: 30, life: 2.20, style: 'slug',  home: 0.15 },
+            artillery:    { color: 0xfb923c, speed: 16, life: 1.40, style: 'slug',  home: 0.00 },
+            shieldbearer: { color: 0x93c5fd, speed: 28, life: 1.50, style: 'bolt',  home: 0.00 },
+            minelayer:    { color: 0xa3e635, speed: 26, life: 1.35, style: 'spark', home: 0.00 },
+            commander:    { color: 0xfacc15, speed: 32, life: 1.45, style: 'bolt',  home: 0.00 },
             warlord:    { color: 0xf87171, speed: 36, life: 1.90, style: 'slug',  home: 0.22 },
             colossus:   { color: 0xa78bfa, speed: 32, life: 2.10, style: 'orb',   home: 0.20 },
             nova:       { color: 0x67e8f9, speed: 40, life: 1.70, style: 'spark', home: 0.14 },
@@ -2954,7 +2962,7 @@
             state.biomeDwellLimit = 300 + Math.random() * 120;
             if (announce && state.isPlaying) {
                 const biome = BIOMES[(state.currentBiome || 0) % BIOMES.length];
-                if (biome) showBiomeBanner(biome.name, 10000);
+                if (biome) showBiomeBanner(biomeBannerText(biome), 10000);
             }
         }
         function pickTimedRandomBiome() {
@@ -2975,7 +2983,7 @@
             if (!state.biomeNameReminded && stayed >= 60) {
                 state.biomeNameReminded = true;
                 const biome = BIOMES[(state.currentBiome || 0) % BIOMES.length];
-                if (biome) showBiomeBanner(biome.name, 4000);
+                if (biome) showBiomeBanner(biomeBannerText(biome), 4000);
             }
             if (state.level >= 10 && now >= 300 && !biomeBlend) {
                 const aboutToLevelSwap = (state.biomeNextIn || 3) <= 1 || (state.pendingBiome !== null && state.pendingBiome !== undefined);
@@ -3753,7 +3761,7 @@
                 this.turretPivot.add(mantlet);
 
                 // Barrel
-                const barrelLength = type === 'sniper' ? 4.8 : 3.4;
+                const barrelLength = (type === 'sniper' || type === 'picker' || type === 'artillery') ? 4.8 : 3.4;
                 const barrelGeo = new THREE.CylinderGeometry(0.13 * scale, 0.16 * scale, barrelLength * scale, 12);
                 const barrelMat = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.3, metalness: 0.8 });
                 this.barrel = new THREE.Mesh(barrelGeo, barrelMat);
@@ -3811,6 +3819,38 @@
                     cross2.position.y = 2.5 * scale;
                     this.mesh.add(cross1, cross2);
                 }
+                if (type === 'shieldbearer') {
+                    const plate = new THREE.Mesh(
+                        new THREE.BoxGeometry(2.1 * scale, 1.15 * scale, 0.22 * scale),
+                        new THREE.MeshStandardMaterial({ color: 0x60a5fa, metalness: 0.75, roughness: 0.32, emissive: 0x1d4ed8, emissiveIntensity: 0.25 })
+                    );
+                    plate.position.set(0, 1.05 * scale, 2.05 * scale);
+                    this.mesh.add(plate);
+                }
+                if (type === 'minelayer') {
+                    const hop = new THREE.Mesh(
+                        new THREE.BoxGeometry(0.9 * scale, 0.45 * scale, 0.7 * scale),
+                        new THREE.MeshStandardMaterial({ color: 0x4d7c0f, metalness: 0.4, roughness: 0.55 })
+                    );
+                    hop.position.set(0, 1.35 * scale, -1.5 * scale);
+                    this.mesh.add(hop);
+                }
+                if (type === 'commander') {
+                    const flag = new THREE.Mesh(
+                        new THREE.BoxGeometry(0.08 * scale, 1.1 * scale, 0.35 * scale),
+                        new THREE.MeshStandardMaterial({ color: 0xfacc15, metalness: 0.5, roughness: 0.35, emissive: 0xca8a04, emissiveIntensity: 0.35 })
+                    );
+                    flag.position.set(-0.45 * scale, 2.15 * scale, -0.2 * scale);
+                    this.turretPivot.add(flag);
+                }
+                if (type === 'artillery') {
+                    const brace = new THREE.Mesh(
+                        new THREE.BoxGeometry(0.55 * scale, 0.28 * scale, 0.7 * scale),
+                        new THREE.MeshStandardMaterial({ color: 0x7c2d12, metalness: 0.55, roughness: 0.4 })
+                    );
+                    brace.position.set(0, 0.35 * scale, 0.4 * scale);
+                    this.turretPivot.add(brace);
+                }
 
                 scene.add(this.mesh);
 
@@ -3853,6 +3893,7 @@
                     let speed = CONFIG.playerSpeed;
                     if (this.isPlayer) {
                         speed *= state.playerStats.speed / 100;
+                        if ((state._rootSlow || 1) < 1) speed *= state._rootSlow;
                         if ((state.runTime || 0) < (state.speedBoostUntil || 0)) {
                             speed *= 1 + 0.25 * Math.max(1, state.playerStats.adrenaline || 0); // v5 + v27.3 haste
                             if (state.playerStats.evo_afterburner) speed *= 1.12;
@@ -4161,6 +4202,268 @@
         // v24: homing missile system
         let missiles = [];
         let supplyDrops = []; // v26.8
+        let fieldMines = [];
+        let artyShots = [];
+        let emberPools = [];
+        let resoPulses = [];
+
+        function biomeTraitOf(biome) {
+            const n = (biome && biome.name) || '';
+            if (n.indexOf('Forest') >= 0 || n.indexOf('Autumn') >= 0 || n.indexOf('Sakura') >= 0) return { id: 'roots', label: 'Roots', short: 'ROOT' };
+            if (n.indexOf('Volcanic') >= 0 || n.indexOf('Blood Moon') >= 0) return { id: 'heat', label: 'Heat', short: 'HEAT' };
+            if (n.indexOf('Crystal') >= 0 || n.indexOf('Neon') >= 0) return { id: 'resonance', label: 'Resonance', short: 'RSN' };
+            return null;
+        }
+        function currentBiomeTrait() {
+            try { return biomeTraitOf(BIOMES[(state.currentBiome || 0) % BIOMES.length]); } catch (e) { return null; }
+        }
+        function biomeBannerText(biome) {
+            const t = biomeTraitOf(biome);
+            return t ? (biome.name + '  ·  ' + t.label) : biome.name;
+        }
+        function nearLivingTree(x, z) {
+            if (!envChunks) return false;
+            for (const ch of envChunks.values()) {
+                if (!ch || !ch.colliders) continue;
+                for (const c of ch.colliders) {
+                    if (!c || c.dead || c.type !== 'tree') continue;
+                    const dx = c.x - x, dz = c.z - z;
+                    const lim = (c.r || 1.5) + 1.15;
+                    if (dx * dx + dz * dz < lim * lim) return true;
+                }
+            }
+            return false;
+        }
+        function hurtPlayerAt(amount, sx, sz) {
+            if (!player || player.isDead) return;
+            player.takeDamage(amount);
+            if (sx != null) try { showDamageDirection(sx, sz); } catch (e) {}
+            try { updateHUD(); } catch (e) {}
+            if (player.hp <= 0) endGame();
+        }
+        function clearTacticalFX() {
+            for (const m of fieldMines) {
+                try { if (m.mesh) { scene.remove(m.mesh); disposeObject3D(m.mesh); } } catch (e) {}
+                try { if (m._tgRing) scene.remove(m._tgRing); } catch (e) {}
+            }
+            fieldMines = [];
+            for (const a of artyShots) {
+                try { if (a.group) { scene.remove(a.group); disposeObject3D(a.group); } } catch (e) {}
+                try { if (a._tgRing) scene.remove(a._tgRing); } catch (e) {}
+            }
+            artyShots = [];
+            for (const p of emberPools) {
+                try { if (p.mesh) { scene.remove(p.mesh); disposeObject3D(p.mesh); } } catch (e) {}
+            }
+            emberPools = [];
+            for (const r of resoPulses) {
+                try { if (r._tgRing) scene.remove(r._tgRing); } catch (e) {}
+                try { if (r._tgFill) scene.remove(r._tgFill); } catch (e) {}
+            }
+            resoPulses = [];
+        }
+        function dropMine(x, z, dmg) {
+            if (fieldMines.length >= 10) return;
+            const y = (typeof getTerrainHeight === 'function' ? getTerrainHeight(x, z) : 0) + 0.12;
+            const mesh = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.55, 0.62, 0.22, 10),
+                new THREE.MeshStandardMaterial({ color: 0x365314, metalness: 0.45, roughness: 0.5, emissive: 0x65a30d, emissiveIntensity: 0.35 })
+            );
+            mesh.position.set(x, y, z);
+            scene.add(mesh);
+            fieldMines.push({ mesh: mesh, x: x, z: z, y: y, dmg: dmg, arm: 0.85, life: 22 });
+        }
+        function fireArtilleryShell(e) {
+            if (!player || player.isDead) return;
+            const leadX = (player.velocity ? player.velocity.x : 0) * 0.28;
+            const leadZ = (player.velocity ? player.velocity.z : 0) * 0.28;
+            const tx = player.mesh.position.x + leadX;
+            const tz = player.mesh.position.z + leadZ;
+            const ty = (typeof getTerrainHeight === 'function' ? getTerrainHeight(tx, tz) : 0);
+            const sx = e.mesh.position.x, sz = e.mesh.position.z, sy = e.mesh.position.y + 2.3;
+            const g = new THREE.Group();
+            const shell = new THREE.Mesh(new THREE.SphereGeometry(0.26, 8, 8), new THREE.MeshBasicMaterial({ color: 0xfb923c }));
+            g.add(shell);
+            g.position.set(sx, sy, sz);
+            scene.add(g);
+            const dmg = (ENEMY_TYPES.artillery.damage || 26) * (state.diffMult.dmg || 1) * (e.damageMult || 1);
+            artyShots.push({ group: g, sx: sx, sy: sy, sz: sz, tx: tx, ty: ty, tz: tz, t: 0, life: 1.12, dmg: dmg });
+        }
+        function titanDoSlam(e, scale) {
+            scale = scale || 1;
+            const r = 14 * scale;
+            try { createExplosion(e.mesh.position.clone(), Math.round(50 * scale), 0x88aaff, 'armor'); } catch (err) {}
+            try { SFX.explosion(50 * scale); } catch (err) {}
+            state.cameraShake = Math.max(state.cameraShake || 0, 0.7 * scale);
+            const slamD = e.mesh.position.distanceTo(player.mesh.position);
+            if (slamD < r) {
+                const amt = ENEMY_TYPES.titan.damage * (slamD < r * 0.5 ? 1 : 0.6) * (state.diffMult.dmg || 1) * (e.damageMult || 1) * scale;
+                hurtPlayerAt(amt, e.mesh.position.x, e.mesh.position.z);
+            } else {
+                try { showDamageDirection(e.mesh.position.x, e.mesh.position.z); } catch (err) {}
+            }
+            try {
+                const ringMat2 = new THREE.MeshBasicMaterial({ color: 0xaaccff, transparent: true, opacity: 0.8 * scale, side: THREE.DoubleSide });
+                const wave = new THREE.Mesh(SHARED_GEO.slamRing, ringMat2);
+                wave.rotation.x = -Math.PI / 2;
+                wave.position.copy(e.mesh.position); wave.position.y += 0.4;
+                scene.add(wave);
+                let ws = 1;
+                const animW = () => { ws += 1.6; wave.scale.setScalar(ws); ringMat2.opacity -= 0.05;
+                    if (ringMat2.opacity > 0) requestAnimationFrame(animW); else { scene.remove(wave); ringMat2.dispose(); } };
+                animW();
+            } catch (err) {}
+        }
+        function updateTactical(dt) {
+            if (!player || player.isDead) return;
+            const trait = currentBiomeTrait();
+            const now = state.runTime || 0;
+            state._rootSlow = 1;
+            state._traitHot = false;
+            state._traitReso = false;
+
+            if (trait && trait.id === 'roots') {
+                if (nearLivingTree(player.mesh.position.x, player.mesh.position.z)) {
+                    state._rootSlow = 0.80;
+                    if (state.quality !== 'low' && Math.random() < 0.08) {
+                        try { fxSparks(player.mesh.position.x, player.mesh.position.y + 0.3, player.mesh.position.z, 0x854d0e, 2); } catch (e) {}
+                    }
+                }
+            }
+
+            if (trait && trait.id === 'heat') {
+                let inFire = false;
+                for (const lava of lavaMeshes) {
+                    if (!lava) continue;
+                    const r = (lava.geometry.parameters && lava.geometry.parameters.radius) || (lava.scale.x * 4) || 4;
+                    const dx = player.mesh.position.x - lava.position.x;
+                    const dz = player.mesh.position.z - lava.position.z;
+                    if (dx * dx + dz * dz < r * r) { inFire = true; break; }
+                }
+                if (!lavaMeshes.length) {
+                    if (now >= (state.nextEmberAt || 6)) {
+                        state.nextEmberAt = now + 10;
+                        for (let i = 0; i < 2; i++) {
+                            const a = Math.random() * Math.PI * 2;
+                            const d = 3 + Math.random() * 9;
+                            const x = player.mesh.position.x + Math.cos(a) * d;
+                            const z = player.mesh.position.z + Math.sin(a) * d;
+                            const y = (typeof getTerrainHeight === 'function' ? getTerrainHeight(x, z) : 0) + 0.1;
+                            const mesh = new THREE.Mesh(
+                                new THREE.CircleGeometry(2.4, 16),
+                                new THREE.MeshBasicMaterial({ color: 0xff4500, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false })
+                            );
+                            mesh.rotation.x = -Math.PI / 2;
+                            mesh.position.set(x, y, z);
+                            scene.add(mesh);
+                            emberPools.push({ mesh: mesh, x: x, z: z, r: 2.4, life: 8 });
+                        }
+                    }
+                }
+                for (let i = emberPools.length - 1; i >= 0; i--) {
+                    const p = emberPools[i];
+                    p.life -= dt;
+                    if (p.mesh && p.mesh.material) p.mesh.material.opacity = 0.28 + 0.28 * (0.5 + 0.5 * Math.sin(now * 6));
+                    if (p.life <= 0) {
+                        try { scene.remove(p.mesh); disposeObject3D(p.mesh); } catch (e) {}
+                        emberPools.splice(i, 1);
+                        continue;
+                    }
+                    const dx = player.mesh.position.x - p.x, dz = player.mesh.position.z - p.z;
+                    if (dx * dx + dz * dz < p.r * p.r) inFire = true;
+                }
+                if (inFire) {
+                    state._traitHot = true;
+                    state._heatAcc = (state._heatAcc || 0) + 7 * dt;
+                    if (state._heatAcc >= 3) {
+                        const tick = Math.floor(state._heatAcc);
+                        state._heatAcc -= tick;
+                        hurtPlayerAt(tick, player.mesh.position.x, player.mesh.position.z);
+                    }
+                } else state._heatAcc = 0;
+            } else if (emberPools.length) {
+                for (const p of emberPools) { try { scene.remove(p.mesh); disposeObject3D(p.mesh); } catch (e) {} }
+                emberPools = [];
+            }
+
+            if (trait && trait.id === 'resonance') {
+                if (now >= (state.nextResoAt || 7)) {
+                    state.nextResoAt = now + 8.5;
+                    const spots = 2 + (Math.random() < 0.45 ? 1 : 0);
+                    for (let i = 0; i < spots; i++) {
+                        const a = Math.random() * Math.PI * 2;
+                        const d = (i === 0 && player.velocity && player.velocity.length() < 2) ? 0.4 : (4 + Math.random() * 6);
+                        resoPulses.push({
+                            x: player.mesh.position.x + Math.cos(a) * d,
+                            z: player.mesh.position.z + Math.sin(a) * d,
+                            t: 0, life: 1.15
+                        });
+                    }
+                }
+                for (let i = resoPulses.length - 1; i >= 0; i--) {
+                    const r = resoPulses[i];
+                    r.t += dt;
+                    const u = Math.min(1, r.t / r.life);
+                    try { fxKeepRing(r, '_tgRing', r.x, r.z, 0x22d3ee, 1.2 + 2.2 * u, 0.25 + 0.45 * u, false); } catch (e) {}
+                    const dx = player.mesh.position.x - r.x, dz = player.mesh.position.z - r.z;
+                    if (dx * dx + dz * dz < 3.4 * 3.4) state._traitReso = true;
+                    if (r.t >= r.life) {
+                        if (dx * dx + dz * dz < 3.4 * 3.4) {
+                            hurtPlayerAt(12 * (state.diffMult.dmg || 1), r.x, r.z);
+                            try { fxSparks(r.x, player.mesh.position.y + 1, r.z, 0x67e8f9, 8); } catch (e) {}
+                        }
+                        try { if (r._tgRing) scene.remove(r._tgRing); } catch (e) {}
+                        resoPulses.splice(i, 1);
+                    }
+                }
+            } else if (resoPulses.length) {
+                for (const r of resoPulses) { try { if (r._tgRing) scene.remove(r._tgRing); } catch (e) {} }
+                resoPulses = [];
+            }
+
+            for (let i = artyShots.length - 1; i >= 0; i--) {
+                const a = artyShots[i];
+                a.t += dt;
+                const u = Math.min(1, a.t / a.life);
+                if (a.group) {
+                    a.group.position.x = a.sx + (a.tx - a.sx) * u;
+                    a.group.position.z = a.sz + (a.tz - a.sz) * u;
+                    a.group.position.y = a.sy + (a.ty - a.sy) * u + Math.sin(u * Math.PI) * 6.2;
+                }
+                try { fxKeepRing(a, '_tgRing', a.tx, a.tz, 0xfb923c, 1.1 + 3.4 * u, 0.22 + 0.45 * u, false); } catch (e) {}
+                if (a.t >= a.life) {
+                    try { createExplosion(new THREE.Vector3(a.tx, a.ty + 0.4, a.tz), 18, 0xfb923c, 'spark'); } catch (e) {}
+                    try { fxRingAt(a.tx, a.tz, 0xf97316, 0.8, 4.4, 0.28, false); SFX.explosion(18); } catch (e) {}
+                    const dx = player.mesh.position.x - a.tx, dz = player.mesh.position.z - a.tz;
+                    if (dx * dx + dz * dz < 4.6 * 4.6) hurtPlayerAt(a.dmg, a.tx, a.tz);
+                    try { if (a.group) { scene.remove(a.group); disposeObject3D(a.group); } } catch (e) {}
+                    try { if (a._tgRing) scene.remove(a._tgRing); } catch (e) {}
+                    artyShots.splice(i, 1);
+                }
+            }
+
+            for (let i = fieldMines.length - 1; i >= 0; i--) {
+                const m = fieldMines[i];
+                m.arm -= dt; m.life -= dt;
+                if (m.mesh) m.mesh.rotation.y += dt * 1.4;
+                const ready = m.arm <= 0;
+                try { fxKeepRing(m, '_tgRing', m.x, m.z, ready ? 0x84cc16 : 0xa3e635, ready ? 1.6 : 1.1, ready ? 0.45 : 0.22, false); } catch (e) {}
+                const dx = player.mesh.position.x - m.x, dz = player.mesh.position.z - m.z;
+                if (ready && dx * dx + dz * dz < 3.2 * 3.2) {
+                    try { createExplosion(new THREE.Vector3(m.x, m.y, m.z), 16, 0x84cc16, 'spark'); SFX.explosion(16); } catch (e) {}
+                    hurtPlayerAt(m.dmg, m.x, m.z);
+                    try { if (m.mesh) { scene.remove(m.mesh); disposeObject3D(m.mesh); } } catch (e) {}
+                    try { if (m._tgRing) scene.remove(m._tgRing); } catch (e) {}
+                    fieldMines.splice(i, 1);
+                    continue;
+                }
+                if (m.life <= 0) {
+                    try { if (m.mesh) { scene.remove(m.mesh); disposeObject3D(m.mesh); } } catch (e) {}
+                    try { if (m._tgRing) scene.remove(m._tgRing); } catch (e) {}
+                    fieldMines.splice(i, 1);
+                }
+            }
+        }
         function fireHomingMissile(target) {
             const g = new THREE.Group();
             const body = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 1.2), new THREE.MeshBasicMaterial({ color: 0xff6644 }));
@@ -4658,7 +4961,7 @@
         // Breakpoints at 10/12/20/22 keep the early game gentle and make deep runs bite.
         function keepTankSpacing(e) {
             if (!player || player.isDead || !e || e.isDead || !e.mesh) return;
-            const sizes = { berserker: 3.7, bomber: 3.3, deathbringer: 3.4, juggernaut: 5.1, hammer: 5.3, raider: 3.5, tombraider: 3.6, titan: 5.6, heavy: 4.1, heavier: 4.4, fortress: 5.2, warlord: 4.7, colossus: 5.1, tempest: 3.8 };
+            const sizes = { berserker: 3.7, bomber: 3.3, deathbringer: 3.4, juggernaut: 5.1, hammer: 5.3, raider: 3.5, tombraider: 3.6, titan: 5.6, heavy: 4.1, heavier: 4.4, fortress: 5.2, warlord: 4.7, colossus: 5.1, tempest: 3.8, shieldbearer: 4.2, artillery: 3.6, commander: 3.7, minelayer: 3.4 };
             const min = sizes[e.type] || 3.05;
             const dx = e.mesh.position.x - player.mesh.position.x;
             const dz = e.mesh.position.z - player.mesh.position.z;
@@ -4722,6 +5025,10 @@
             if (level >= 16) types.push('juggernaut');
             if (level >= 17) types.push('hammer');
             if (level >= 18) types.push('raider');
+            if (level >= 7) types.push('shieldbearer');
+            if (level >= 8) types.push('artillery');
+            if (level >= 9) types.push('minelayer');
+            if (level >= 13) types.push('commander');
             // v28.7: keep Scout / Soldier / Heavy in the teens so the field is not only variants
             const basics = ['scout', 'soldier'];
             if (level >= 3) basics.push('heavy');
@@ -4845,6 +5152,7 @@
             boss.burstLeft = 0; boss.burstTimer = 0;
             boss.spiralAngle = 0; boss.spiralShots = 0; boss.firing = true; boss.restUntil = 0; // v24
             boss.summoned1 = false; boss.summoned2 = false;
+            boss._phase = 1;
             boss.mesh.position.set(bx, 0, bz);
             enemies.push(boss);
             state.bossActive = boss;
@@ -5569,6 +5877,7 @@
             enemies.forEach(e => { scene.remove(e.mesh); disposeObject3D(e.mesh); }); enemies = [];
             bullets.forEach(b => scene.remove(b.group)); bullets = [];
             missiles.forEach(m => scene.remove(m.group)); missiles = []; // v24
+            try { clearTacticalFX(); } catch (e) {}
             particles.forEach(p => { scene.remove(p.mesh); disposeObject3D(p.mesh); }); particles = [];
             document.querySelectorAll('.score-popup').forEach(p => p.remove());
             setScreenVisibility('pause-screen', false);
@@ -5600,6 +5909,7 @@
             missiles = [];
             particles = [];
             supplyDrops = [];
+            try { clearTacticalFX(); } catch (e) {}
             state.nextDropAt = 12;
 
             state.mode = mode; // v10
@@ -6178,6 +6488,7 @@
                 }
             }
             updateSupplyDrops(dt);
+            try { updateTactical(dt); } catch (e) {}
 
             // Health regen
             const regenNow = state.playerStats.regen || 0;
@@ -6234,6 +6545,10 @@
             // Enemy AI
             enemies.forEach(e => {
                 if (e.isDead) return;
+                if (e._cmdBuffUntil && (state.runTime || 0) >= e._cmdBuffUntil) {
+                    e.speedMult = e._baseSpd || e.speedMult || 1;
+                    e._cmdBuffUntil = 0;
+                }
 
                 // v26.3: one move() per enemy per frame (was a dummy terrain step + AI step)
                 let moved = false;
@@ -6311,9 +6626,11 @@
                             const cloackO = 0.15 + 0.1 * Math.sin(now * 3);
                             e.mesh.traverse(c => { if (c.isMesh && c.material) { c.material.transparent = true; c.material.opacity = cloackO; } });
                         }
-                    } else if (e.type === 'titan') { // v24: ground-slam shockwaves
+                    } else if (e.type === 'titan') { // v24: ground-slam shockwaves — HUD 24 phases change rhythm, not rate
                         if (dist > 16) step(_sv1.set(toPlayer.x, toPlayer.z).normalize());
                         e.aimAt(player.mesh.position, dt);
+                        if (e.hp < e.maxHp * 0.3 && (e._phase || 1) < 3) { e._phase = 3; showBossBanner('TITAN — PHASE 3'); }
+                        else if (e.hp < e.maxHp * 0.6 && (e._phase || 1) < 2) { e._phase = 2; showBossBanner('TITAN — PHASE 2'); }
                         const slamIn = (e.nextAttackAt || 0) - now;
                         if (slamIn > 0 && slamIn < 0.8) {
                             const u = 1 - slamIn / 0.8;
@@ -6327,25 +6644,32 @@
                         }
                         if (now >= e.nextAttackAt) {
                             e.nextAttackAt = now + e.attackInterval;
-                            createExplosion(e.mesh.position.clone(), 50, 0x88aaff, 'armor');
-                            SFX.explosion(50);
-                            state.cameraShake = Math.max(state.cameraShake, 0.7);
-                            const slamD = e.mesh.position.distanceTo(player.mesh.position);
-                            if (slamD < 14) player.takeDamage(ENEMY_TYPES.titan.damage * (slamD < 7 ? 1 : 0.6) * (state.diffMult.dmg || 1) * (e.damageMult || 1)); // v26
-                            showDamageDirection(e.mesh.position.x, e.mesh.position.z);
-                            const ringMat2 = new THREE.MeshBasicMaterial({ color: 0xaaccff, transparent: true, opacity: 0.8, side: THREE.DoubleSide });
-                            const wave = new THREE.Mesh(SHARED_GEO.slamRing, ringMat2);
-                            wave.rotation.x = -Math.PI / 2;
-                            wave.position.copy(e.mesh.position); wave.position.y += 0.4;
-                            scene.add(wave);
-                            let ws = 1;
-                            const animW = () => { ws += 1.6; wave.scale.setScalar(ws); ringMat2.opacity -= 0.05;
-                                if (ringMat2.opacity > 0) requestAnimationFrame(animW); else { scene.remove(wave); ringMat2.dispose(); } };
-                            animW();
+                            titanDoSlam(e, 1);
+                            if ((e._phase || 1) >= 2) e._followSlamAt = now + 0.95;
+                            if ((e._phase || 1) >= 3) e._pipAt = now + 0.55;
                         }
-                    } else if (e.type === 'tempest') { // v24: blink strikes
+                        if (e._followSlamAt && now >= e._followSlamAt) {
+                            e._followSlamAt = 0;
+                            titanDoSlam(e, 0.72);
+                        }
+                        if (e._pipAt && now >= e._pipAt) {
+                            e._pipAt = 0;
+                            for (let p = 0; p < 4; p++) {
+                                const ang = p * Math.PI * 0.5 + 0.2;
+                                const px = e.mesh.position.x + Math.cos(ang) * 10;
+                                const pz = e.mesh.position.z + Math.sin(ang) * 10;
+                                try { fxRingAt(px, pz, 0x93c5fd, 0.6, 2.8, 0.28, true); } catch (err) {}
+                                const dxp = player.mesh.position.x - px, dzp = player.mesh.position.z - pz;
+                                if (dxp * dxp + dzp * dzp < 3.2 * 3.2) {
+                                    hurtPlayerAt(ENEMY_TYPES.titan.damage * 0.45 * (state.diffMult.dmg || 1) * (e.damageMult || 1), px, pz);
+                                }
+                            }
+                        }
+                    } else if (e.type === 'tempest') { // v24: blink strikes — HUD 24 phases add extra blinks/bursts, same cadence
                         step(_sv1.set(toPlayer.x, toPlayer.z).normalize());
                         e.aimAt(player.mesh.position, dt);
+                        if (e.hp < e.maxHp * 0.3 && (e._phase || 1) < 3) { e._phase = 3; showBossBanner('TEMPEST — PHASE 3'); }
+                        else if (e.hp < e.maxHp * 0.6 && (e._phase || 1) < 2) { e._phase = 2; showBossBanner('TEMPEST — PHASE 2'); }
                         const blinkIn = (e.nextAttackAt || 0) - now;
                         if (blinkIn > 0 && blinkIn < 0.4) {
                             if (!e._ghostDest) {
@@ -6368,11 +6692,25 @@
                             if (e._ghost) { try { scene.remove(e._ghost); } catch (err) {} e._ghost = null; }
                             SFX.bossAlarm();
                             e.burstLeft = 3; e.burstTimer = 0;
+                            e._extraBurst = (e._phase || 1) >= 2;
+                            if ((e._phase || 1) >= 3) e._secondBlinkAt = now + 0.55;
+                        }
+                        if (e._secondBlinkAt && now >= e._secondBlinkAt) {
+                            e._secondBlinkAt = 0;
+                            const a3 = Math.random() * Math.PI * 2;
+                            const d3 = 14 + Math.random() * 8;
+                            e.mesh.position.set(player.mesh.position.x + Math.cos(a3) * d3, 0, player.mesh.position.z + Math.sin(a3) * d3);
+                            try { createExplosion(e.mesh.position.clone(), 10, 0x38bdf8, 'spark'); } catch (err) {}
                         }
                         if (e.burstLeft > 0 && now >= e.burstTimer) {
                             e.burstLeft--; e.burstTimer = now + 0.14;
                             if (e.burstLeft === 2) createMuzzleFlash(e);
                             spawnBullet(e, _bossDir.set(toPlayer.x, 0, toPlayer.z).normalize(), ENEMY_TYPES.tempest.damage);
+                            if (e.burstLeft === 0 && e._extraBurst) {
+                                e._extraBurst = false;
+                                e.burstLeft = 3;
+                                e.burstTimer = now + 0.42;
+                            }
                         }
                     } else if (e.type === 'fortress') { // v24: spiral barrage with rest cycles
                         if (dist > 30) step(_sv1.set(toPlayer.x, toPlayer.z).normalize().multiplyScalar(0.5));
@@ -6475,7 +6813,60 @@
                     } else if (enemyFireRoll(0.003, dt)) {
                         e.burstLeft = 3;
                     }
-                 } else if (e.type === 'berserker') {
+                } else if (e.type === 'artillery') {
+                    if (e.nextAttackAt == null) e.nextAttackAt = clock.getElapsedTime() + 1.6;
+                    if (dist < 28) step(_sv1.set(-toPlayer.x, -toPlayer.z).normalize());
+                    else if (dist > 40) step(_sv1.set(toPlayer.x, toPlayer.z).normalize().multiplyScalar(0.55));
+                    e.aimAt(player.mesh.position, dt);
+                    if (dist < 52 && clock.getElapsedTime() >= (e.nextAttackAt || 0)) {
+                        e.nextAttackAt = clock.getElapsedTime() + 3.2;
+                        fireArtilleryShell(e);
+                    }
+                } else if (e.type === 'shieldbearer') {
+                    if (dist > 11) step(_sv1.set(toPlayer.x, toPlayer.z).normalize());
+                    e.aimAt(player.mesh.position, dt);
+                    if (dist < 26 && enemyFireRoll(0.010, dt)) shoot(e);
+                } else if (e.type === 'minelayer') {
+                    if (e.nextAttackAt == null) e.nextAttackAt = clock.getElapsedTime() + 2.2;
+                    if (e.wavePhase === undefined) e.wavePhase = Math.random() * Math.PI * 2;
+                    if (dist > 24) step(_sv1.set(toPlayer.x, toPlayer.z).normalize());
+                    else if (dist < 14) step(_sv1.set(-toPlayer.x, -toPlayer.z).normalize());
+                    else {
+                        const st = Math.sin(clock.getElapsedTime() * 1.2 + e.wavePhase);
+                        step(_sv1.set(-toPlayer.z, toPlayer.x).normalize().multiplyScalar(st));
+                    }
+                    e.aimAt(player.mesh.position, dt);
+                    if (clock.getElapsedTime() >= (e.nextAttackAt || 0)) {
+                        e.nextAttackAt = clock.getElapsedTime() + 4.0;
+                        const own = fieldMines.filter(function (m) { return m.owner === e; }).length;
+                        if (own < 3) {
+                            const mineDmg = (ENEMY_TYPES.minelayer.damage || 22) * (state.diffMult.dmg || 1) * (e.damageMult || 1);
+                            dropMine(e.mesh.position.x, e.mesh.position.z, mineDmg);
+                            if (fieldMines.length) fieldMines[fieldMines.length - 1].owner = e;
+                        }
+                    }
+                    if (dist < 26 && enemyFireRoll(0.008, dt)) shoot(e);
+                } else if (e.type === 'commander') {
+                    if (e._buffAt == null) e._buffAt = clock.getElapsedTime() + 1.8;
+                    if (dist < 18) step(_sv1.set(-toPlayer.x, -toPlayer.z).normalize());
+                    else if (dist > 28) step(_sv1.set(toPlayer.x, toPlayer.z).normalize().multiplyScalar(0.7));
+                    e.aimAt(player.mesh.position, dt);
+                    if (clock.getElapsedTime() >= (e._buffAt || 0)) {
+                        e._buffAt = clock.getElapsedTime() + 5;
+                        try { fxKeepRing(e, '_tgRing', e.mesh.position.x, e.mesh.position.z, 0xfacc15, 8, 0.4, false); } catch (err) {}
+                        for (const ally of enemies) {
+                            if (!ally || ally === e || ally.isDead || ally.isBoss) continue;
+                            const adx = ally.mesh.position.x - e.mesh.position.x;
+                            const adz = ally.mesh.position.z - e.mesh.position.z;
+                            if (adx * adx + adz * adz < 16 * 16) {
+                                if (!ally._baseSpd) ally._baseSpd = ally.speedMult || 1;
+                                ally.speedMult = ally._baseSpd * 1.18;
+                                ally._cmdBuffUntil = (state.runTime || 0) + 4;
+                            }
+                        }
+                    }
+                    if (dist < 32 && enemyFireRoll(0.010, dt)) shoot(e);
+                } else if (e.type === 'berserker') {
                     step(_sv1.set(toPlayer.x, toPlayer.z).normalize());
                     e.aimAt(player.mesh.position, dt); // FIX (Tier 4)
                     if (dist < 18 && enemyFireRoll(0.025, dt)) shoot(e); // v10 // FIX (Tier 3)
@@ -6571,6 +6962,16 @@
                                     if (isCrit && state.playerStats.evo_prism) {
                                         b.group.userData.pierce = (b.group.userData.pierce || 0) + 1;
                                         try { fxSparks(b.group.position.x, b.group.position.y, b.group.position.z, 0xa5f3fc, 8); } catch (err) {}
+                                    }
+                                    if (enemy.type === 'shieldbearer' && (b.group.userData.pierce || 0) <= 0) {
+                                        const fx = Math.sin(enemy.mesh.rotation.y), fz = Math.cos(enemy.mesh.rotation.y);
+                                        const bx = b.group.position.x - enemy.mesh.position.x;
+                                        const bz = b.group.position.z - enemy.mesh.position.z;
+                                        const bl = Math.hypot(bx, bz) || 1;
+                                        if ((fx * bx + fz * bz) / bl > 0.28) {
+                                            dmg *= 0.12;
+                                            try { fxSparks(b.group.position.x, b.group.position.y, b.group.position.z, 0x60a5fa, 6); } catch (err) {}
+                                        }
                                     }
                                     enemy.takeDamage(dmg);
                                     if (!enemy.isDead) bumpComboFromHit(enemy);
@@ -6829,14 +7230,14 @@
             }
 
             // v26.7: late-run spice — short events so 15+ is not the same fight forever
-            if (state.level >= 15 && !state.surgeActive && !state.isChoosingUpgrade) {
+            if (state.level >= 8 && !state.surgeActive && !state.isChoosingUpgrade) {
                 if (state.funUntil && state.runTime >= state.funUntil) {
                     if (state.funKind === 'bounty') state.runCoinBoost = Math.max(0, (state.runCoinBoost || 0) - 0.5);
                     state.funKind = null; state.funUntil = 0;
                     state.nextFunAt = state.runTime + 40 + Math.random() * 25;
                 }
                 if (!state.funKind && state.runTime >= (state.nextFunAt || 80)) {
-                    const kinds = ['bounty', 'lull', 'raid'];
+                    const kinds = state.level >= 15 ? ['bounty', 'lull', 'raid', 'ambush'] : ['bounty', 'ambush'];
                     state.funKind = kinds[Math.floor(Math.random() * kinds.length)];
                     state.funUntil = state.runTime + (state.funKind === 'lull' ? 12 : 16);
                     state.nextFunAt = state.funUntil + 40 + Math.random() * 25;
@@ -6845,6 +7246,18 @@
                         showBossBanner('💰 BOUNTY — extra coins for 16s');
                     } else if (state.funKind === 'lull') {
                         showBossBanner('🌤 BREATHER — fewer spawns');
+                    } else if (state.funKind === 'ambush') {
+                        showBossBanner('📦 SUPPLY AMBUSH — the crate is bait');
+                        try { spawnSupplyDrop(); } catch (err) {}
+                        const drop = supplyDrops[supplyDrops.length - 1];
+                        const ax = drop && drop.group ? drop.group.position.x : player.mesh.position.x;
+                        const az = drop && drop.group ? drop.group.position.z : player.mesh.position.z;
+                        const raidCeil = getMaxEnemies() + 3;
+                        for (let i = 0; i < 3; i++) {
+                            if (livingEnemyCount() >= raidCeil) break;
+                            const a = Math.random() * Math.PI * 2, d = 6 + Math.random() * 5;
+                            makeScaledEnemy(i === 2 ? 'soldier' : 'scout', ax + Math.cos(a) * d, az + Math.sin(a) * d);
+                        }
                     } else {
                         showBossBanner('🏍 RAIDERS INBOUND');
                         const raidCeil = getMaxEnemies() + 4;
@@ -6950,7 +7363,7 @@
                 ctx.beginPath(); ctx.moveTo(0, gp); ctx.lineTo(W, gp); ctx.stroke();
             }
 
-            const VAR_DOT = { scouter:1, soldierpro:1, heavier:1, picker:1, squsasher:1, deathbringer:1, phantasm:1, gunnier:1, tombraider:1, hammer:1 };
+            const VAR_DOT = { scouter:1, soldierpro:1, heavier:1, picker:1, squsasher:1, deathbringer:1, phantasm:1, gunnier:1, tombraider:1, hammer:1, artillery:1, shieldbearer:1, minelayer:1, commander:1 };
             for (const e of enemies) { // enemies as dots — variants are teal
                 if (e.isDead) continue;
                 const [mx, mz] = toMap(e.mesh.position.x, e.mesh.position.z);
@@ -6966,6 +7379,13 @@
                     const [sx, sz] = toMap(d.group.position.x, d.group.position.z);
                     ctx.fillStyle = d.black ? '#c084fc' : '#fbbf24';
                     ctx.fillRect(sx - 3, sz - 3, 6, 6);
+                }
+            }
+            if (fieldMines && fieldMines.length) {
+                for (const m of fieldMines) {
+                    const [mx, mz] = toMap(m.x, m.z);
+                    ctx.fillStyle = '#84cc16';
+                    ctx.beginPath(); ctx.arc(mx, mz, 2.2, 0, Math.PI * 2); ctx.fill();
                 }
             }
 
@@ -7068,6 +7488,12 @@
             if (now < (state.blastUntil || 0)) bits.push(['+20', 'buff-blast']);
             if (now < (state.speedBoostUntil || 0)) bits.push(['HST', 'buff-haste']);
             if (state.funKind === 'bounty' && now < (state.funUntil || 0)) bits.push(['$$$', 'buff-bounty']);
+            if (state.funKind === 'ambush' && now < (state.funUntil || 0)) bits.push(['AMB', 'buff-bounty']);
+            if (state._rootSlow && state._rootSlow < 1) bits.push(['ROOT', 'buff-haste']);
+            if (state._traitHot) bits.push(['HEAT', 'buff-blast']);
+            if (state._traitReso) bits.push(['RSN', 'buff-oc']);
+            const tr = currentBiomeTrait();
+            if (tr && bits.every(function (b) { return b[0] !== tr.short; })) bits.push([tr.short, 'buff-ready']);
             const key = bits.map(function (b) { return b[0]; }).join('|');
             if (row.dataset.k === key) return;
             row.dataset.k = key;
